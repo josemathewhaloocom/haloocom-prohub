@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   FolderKanban,
   Users,
+  ClipboardList,
   FileText,
   Settings,
   LogOut,
@@ -16,7 +17,8 @@ import { useState } from "react";
 const navItems = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
   { to: "/projects", label: "Projects", icon: FolderKanban },
-  { to: "/engineers", label: "Engineers", icon: Users },
+  { to: "/engineers", label: "Engineers", icon: Users, adminOnly: true },
+  { to: "/updates", label: "Daily Updates", icon: ClipboardList },
   { to: "/documents", label: "Documents", icon: FileText },
   { to: "/settings", label: "Settings", icon: Settings },
 ];
@@ -58,9 +60,8 @@ export default function AppSidebar() {
 
       {/* Nav */}
       <nav className="flex-1 space-y-1 px-2 py-4">
-        {navItems.map(({ to, label, icon: Icon }) => {
-          // Only show Engineers link to admins
-          if (to === "/engineers" && role !== "admin") return null;
+        {navItems.map(({ to, label, icon: Icon, adminOnly }) => {
+          if (adminOnly && role !== "admin") return null;
           return (
             <NavLink
               key={to}
