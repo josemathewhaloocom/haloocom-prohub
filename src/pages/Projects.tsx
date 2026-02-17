@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,6 +34,7 @@ const PRIORITY_STYLES: Record<string, string> = {
 
 export default function Projects() {
   const { role, user } = useAuth();
+  const navigate = useNavigate();
   const [projects, setProjects] = useState<Project[]>([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -192,7 +194,7 @@ export default function Projects() {
                 </TableRow>
               ) : (
                 filtered.map((p) => (
-                  <TableRow key={p.id}>
+                  <TableRow key={p.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/projects/${p.id}`)}>
                     <TableCell className="font-medium">{p.name}</TableCell>
                     <TableCell>
                       <div className="text-sm">{p.client_name}</div>
