@@ -8,11 +8,19 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, Plus, UserPlus, Trash2, Calendar, DollarSign, Building2 } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
+import { ArrowLeft, UserPlus, Trash2, Calendar, DollarSign, Package } from "lucide-react";
 import { toast } from "sonner";
 import type { Database } from "@/integrations/supabase/types";
 
-type Project = Database["public"]["Tables"]["projects"]["Row"];
+type Project = Database["public"]["Tables"]["projects"]["Row"] & {
+  product_id?: string | null;
+  product_version?: string | null;
+  num_users?: number | null;
+  num_channels?: number | null;
+  trunk?: string | null;
+  location?: string | null;
+};
 
 const STATUS_STYLES: Record<string, string> = {
   upcoming: "bg-info/10 text-info border-info/20",
@@ -54,11 +62,22 @@ export default function ProjectDetail() {
   const [selectedEngineer, setSelectedEngineer] = useState("");
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [productName, setProductName] = useState<string | null>(null);
 
   const fetchProject = async () => {
     if (!id) return;
     const { data } = await supabase.from("projects").select("*").eq("id", id).single();
-    setProject(data);
+    setProject(data as unknown as Project);
+    // Fetch product name if product_id exists
+    const proj = data as any;
+    if (proj?.product_id) {
+      const { data: prod } = await supabase
+        .from("product_catalog" as any)
+        .select("name")
+        .eq("id", proj.product_id)
+        .single();
+      setProductName((prod as any)?.name ?? null);
+    }
   };
 
   const fetchAssignments = async () => {
@@ -216,6 +235,55 @@ export default function ProjectDetail() {
         <Card>
           <CardHeader><CardTitle className="text-base">Description</CardTitle></CardHeader>
           <CardContent><p className="text-sm text-muted-foreground whitespace-pre-wrap">{project.description}</p></CardContent>
+        </Card>
+      )}
+
+      {/* Product Details */}
+      {(productName || project.product_version || project.num_users != null || project.num_channels != null || project.trunk || project.location) && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Package className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-base">Product Details</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {productName && (
+                <div>
+                  <p className="text-xs text-muted-foreground">Product</p>
+                  <p className="text-sm font-medium">
+                    {productName}
+                    {project.product_version && <span className="ml-1 text-muted-foreground">{project.product_version}</span>}
+                  </p>
+                </div>
+              )}
+              {project.num_users != null && (
+                <div>
+                  <p className="text-xs text-muted-foreground">No. of Users</p>
+                  <p className="text-sm font-medium">{project.num_users}</p>
+                </div>
+              )}
+              {project.num_channels != null && (
+                <div>
+                  <p className="text-xs text-muted-foreground">No. of Channels</p>
+                  <p className="text-sm font-medium">{project.num_channels}</p>
+                </div>
+              )}
+              {project.trunk && (
+                <div>
+                  <p className="text-xs text-muted-foreground">Trunk</p>
+                  <p className="text-sm font-medium">{project.trunk}</p>
+                </div>
+              )}
+              {project.location && (
+                <div>
+                  <p className="text-xs text-muted-foreground">Location</p>
+                  <p className="text-sm font-medium">{project.location}</p>
+                </div>
+              )}
+            </div>
+          </CardContent>
         </Card>
       )}
 
