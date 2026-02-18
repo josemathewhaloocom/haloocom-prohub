@@ -1,73 +1,116 @@
 
+# Add Product Details to Projects
 
-# Project Management Internal Tool
+## What's Being Added
 
-## Overview
-A data-rich internal dashboard for managing engineering projects end-to-end — from assignment to client sign-off — with automated email notifications, document management, and engineer performance tracking.
+Five new fields will be added to the project creation form and project detail view:
 
-**Backend:** Lovable Cloud (Supabase) for database, auth, file storage, and edge functions
-**Emails:** Resend (via edge functions) for all automated notifications
+1. **Product Name** — dropdown, values managed by admin from a dedicated product catalog table
+2. **Product Version** — free-text input
+3. **Number of Users** — numeric input
+4. **Number of Channels** — numeric input
+5. **Trunk** — free-text input
+6. **Location** — free-text input
 
----
-
-## Module 1: Authentication & Roles
-- Login page for Admin (you) and Engineers
-- Role-based access: Admin sees everything, Engineers see only their assigned projects
-- Admin can invite engineers by email
-
-## Module 2: Project Management
-- **Create Project** — Add project name, client details (name, email, company), description, start date, deadline, budget, priority level
-- **Assign Engineer** — Select an engineer to assign; triggers email to engineer with client details and project brief
-- **Project Statuses** — Upcoming, In Progress, On Hold, Completed
-- **Project Timeline** — Set milestones with target dates; track actual vs planned progress
-- **Client & Stakeholder Contacts** — Store emails for automated notifications per project
-
-## Module 3: Daily Progress Updates
-- Engineers submit daily updates per project (text summary, % completion, blockers, hours worked)
-- Updates auto-trigger email to client and internal stakeholders
-- Admin can view full update history per project
-
-## Module 4: Document Management & Digital Sign-off
-- Engineers upload sign-off documents (stored in Supabase Storage)
-- Built-in signature pad — engineers can digitally sign documents
-- **Approval Workflow:** Upload → Admin reviews → Approve/Reject → On approval, sign-off email sent to client with document attached
-- Document history and version tracking
-
-## Module 5: Email Notifications (via Resend Edge Functions)
-- **Project Assignment** — Engineer gets email with client details and project info
-- **Daily Updates** — Auto-email to client and stakeholders after engineer submits update
-- **Sign-off Approval** — Email to client with signed document after admin approval
-- All emails use professional HTML templates
-
-## Module 6: Dashboard & Analytics
-- **Overview Dashboard** — Total projects by status (upcoming/ongoing/completed), overdue projects, recent activity feed
-- **Project Tracker** — Filterable table of all projects with status, assigned engineer, deadline, progress %
-- **Engineer Performance** — Projects completed, average completion time, on-time delivery rate, daily update consistency
-- **Timeline View** — Visual timeline showing project durations and milestones
-- **Workload Distribution** — See how many active projects each engineer has
-
-## Module 7: Engineer Performance Tracking
-- Metrics: projects completed, on-time delivery %, average daily update streak, client satisfaction (optional rating)
-- Performance comparison view across engineers
-- Individual engineer profile with project history
+A new admin-only **Product Catalog** section will be added in Settings so admins can add/remove product names from the dropdown.
 
 ---
 
-## Design Approach
-- **Data-rich dashboard** with charts (Recharts), KPI cards, and status indicators
-- Clean sidebar navigation with sections: Dashboard, Projects, Engineers, Documents, Settings
-- Color-coded project status badges
-- Responsive design for desktop-first use (with tablet support)
+## Database Changes (Migration)
+
+### New Table: `product_catalog`
+
+Stores the list of products that appear in the dropdown.
+
+```text
+id          uuid  (primary key)
+name        text  (unique, not null)
+is_active   boolean (default true)
+created_by  uuid
+created_at  timestamptz
+```
+
+RLS Policies:
+- Admins: full CRUD
+- All authenticated users: SELECT (so the dropdown works for engineers viewing their assigned projects)
+
+### Extend `projects` Table
+
+Add six new nullable columns:
+
+| Column | Type |
+|---|---|
+| `product_id` | uuid (FK → product_catalog.id) |
+| `product_version` | text |
+| `num_users` | integer |
+| `num_channels` | integer |
+| `trunk` | text |
+| `location` | text |
 
 ---
 
-## Implementation Order
-1. Auth & roles setup with database schema
-2. Project CRUD and assignment flow
-3. Daily updates module
-4. Dashboard with charts and project tracker
-5. Document upload and digital signature
-6. Approval workflow
-7. Email notifications (Resend integration)
-8. Engineer performance analytics
+## Files Changed
 
+### 1. `src/pages/Projects.tsx`
+- Add product fields to the "Create Project" dialog form:
+  - Product Name → Select dropdown (fetched from `product_catalog`)
+  - Product Version → text input
+  - No. of Users → number input
+  - No. of Channels → number input
+  - Trunk → text input
+  - Location → text input
+- Fetch the product catalog list on dialog open
+
+### 2. `src/pages/ProjectDetail.tsx`
+- Add a new "Product Details" info card section below the existing metadata cards
+- Display: Product Name, Product Version, Users, Channels, Trunk, Location
+
+### 3. `src/pages/SettingsPage.tsx`
+- Add a new **"Product Catalog"** tab/section (admin-only)
+- Admin can:
+  - View existing product names
+  - Add a new product name
+  - Toggle active/inactive (soft delete)
+
+---
+
+## How It Looks in the UI
+
+**Create Project dialog** — new section added below Description:
+
+```text
+[ Product Name ▼ ]   [ Product Version  ]
+[ No. of Users    ]   [ No. of Channels  ]
+[ Trunk           ]   [ Location         ]
+```
+
+**Project Detail page** — new card "Product Details":
+
+```text
+┌─────────────────────────────────────────────┐
+│  Product Details                            │
+│  Product: Haloocom UC  v2.1                 │
+│  Users: 150    Channels: 24    Trunk: SIP   │
+│  Location: Dubai HQ                         │
+└─────────────────────────────────────────────┘
+```
+
+**Settings page** — new "Product Catalog" section (admin only):
+
+```text
+┌─────────────────────────────────────────────┐
+│  Product Catalog                [+ Add]     │
+│  • Haloocom UC        [Active]  [Remove]    │
+│  • Haloocom CC        [Active]  [Remove]    │
+│  • Haloocom Messaging [Active]  [Remove]    │
+└─────────────────────────────────────────────┘
+```
+
+---
+
+## Implementation Steps
+
+1. Run database migration — create `product_catalog` table and add 6 new columns to `projects`
+2. Update `SettingsPage.tsx` — add Product Catalog management for admins
+3. Update `Projects.tsx` — add product fields to the create dialog
+4. Update `ProjectDetail.tsx` — display product details card
