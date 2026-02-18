@@ -11,12 +11,28 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Separator } from "@/components/ui/separator";
 import { Plus, Search } from "lucide-react";
 import { toast } from "sonner";
 import type { Database } from "@/integrations/supabase/types";
 
 type Project = Database["public"]["Tables"]["projects"]["Row"];
 type ProjectInsert = Database["public"]["Tables"]["projects"]["Insert"];
+
+interface Product {
+  id: string;
+  name: string;
+}
+
+interface ProjectForm extends Partial<ProjectInsert> {
+  product_id?: string;
+  product_version?: string;
+  num_users?: number;
+  num_channels?: number;
+  trunk?: string;
+  location?: string;
+}
+
 
 const STATUS_STYLES: Record<string, string> = {
   upcoming: "bg-info/10 text-info border-info/20",
@@ -39,23 +55,48 @@ export default function Projects() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [form, setForm] = useState<Partial<ProjectInsert>>({ status: "upcoming", priority: "medium" });
+  const [form, setForm] = useState<ProjectForm>({ status: "upcoming", priority: "medium" });
+  const [products, setProducts] = useState<Product[]>([]);
 
   const fetchProjects = async () => {
     const { data } = await supabase.from("projects").select("*").order("created_at", { ascending: false });
     setProjects(data ?? []);
   };
 
+  const fetchProducts = async () => {
+    const { data } = await supabase
+      .from("product_catalog" as any)
+      .select("id, name")
+      .eq("is_active", true)
+      .order("name");
+    setProducts((data as unknown as Product[]) ?? []);
+  };
+
   useEffect(() => { fetchProjects(); }, []);
+
+  useEffect(() => { if (dialogOpen) fetchProducts(); }, [dialogOpen]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     const { error } = await supabase.from("projects").insert({
-      ...form,
       name: form.name!,
       client_name: form.client_name!,
+      client_email: form.client_email,
+      client_company: form.client_company,
+      description: form.description,
+      status: form.status,
+      priority: form.priority,
+      start_date: form.start_date,
+      deadline: form.deadline,
+      budget: form.budget,
       created_by: user!.id,
-    } as ProjectInsert);
+      ...(form.product_id ? { product_id: form.product_id } : {}),
+      ...(form.product_version ? { product_version: form.product_version } : {}),
+      ...(form.num_users != null ? { num_users: form.num_users } : {}),
+      ...(form.num_channels != null ? { num_channels: form.num_channels } : {}),
+      ...(form.trunk ? { trunk: form.trunk } : {}),
+      ...(form.location ? { location: form.location } : {}),
+    } as any);
     if (error) { toast.error(error.message); return; }
     toast.success("Project created!");
     setDialogOpen(false);
@@ -81,7 +122,7 @@ export default function Projects() {
             <DialogTrigger asChild>
               <Button><Plus className="mr-2 h-4 w-4" /> New Project</Button>
             </DialogTrigger>
-            <DialogContent className="max-w-lg">
+            <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
               <DialogHeader><DialogTitle>Create Project</DialogTitle></DialogHeader>
               <form onSubmit={handleCreate} className="space-y-4">
                 <div className="space-y-2">
@@ -146,6 +187,48 @@ export default function Projects() {
                   <Label>Budget</Label>
                   <Input type="number" value={form.budget ?? ""} onChange={(e) => setForm({ ...form, budget: e.target.value ? Number(e.target.value) : undefined })} />
                 </div>
+
+                <Separator />
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Product Details</p>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>Product Name</Label>
+                    <Select value={form.product_id || ""} onValueChange={(v) => setForm({ ...form, product_id: v })}>
+                      <SelectTrigger><SelectValue placeholder="Select product" /></SelectTrigger>
+                      <SelectContent>
+                        {products.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Product Version</Label>
+                    <Input placeholder="e.g. v2.1" value={form.product_version || ""} onChange={(e) => setForm({ ...form, product_version: e.target.value })} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>No. of Users</Label>
+                    <Input type="number" min={0} value={form.num_users ?? ""} onChange={(e) => setForm({ ...form, num_users: e.target.value ? Number(e.target.value) : undefined })} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>No. of Channels</Label>
+                    <Input type="number" min={0} value={form.num_channels ?? ""} onChange={(e) => setForm({ ...form, num_channels: e.target.value ? Number(e.target.value) : undefined })} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>Trunk</Label>
+                    <Input placeholder="e.g. SIP" value={form.trunk || ""} onChange={(e) => setForm({ ...form, trunk: e.target.value })} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Location</Label>
+                    <Input placeholder="e.g. Dubai HQ" value={form.location || ""} onChange={(e) => setForm({ ...form, location: e.target.value })} />
+                  </div>
+                </div>
+
                 <Button type="submit" className="w-full">Create Project</Button>
               </form>
             </DialogContent>

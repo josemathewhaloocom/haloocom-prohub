@@ -173,6 +173,30 @@ export type Database = {
           },
         ]
       }
+      product_catalog: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -285,11 +309,17 @@ export type Database = {
           deadline: string | null
           description: string | null
           id: string
+          location: string | null
           name: string
+          num_channels: number | null
+          num_users: number | null
           priority: Database["public"]["Enums"]["project_priority"]
+          product_id: string | null
+          product_version: string | null
           progress_percentage: number
           start_date: string | null
           status: Database["public"]["Enums"]["project_status"]
+          trunk: string | null
           updated_at: string
         }
         Insert: {
@@ -302,11 +332,17 @@ export type Database = {
           deadline?: string | null
           description?: string | null
           id?: string
+          location?: string | null
           name: string
+          num_channels?: number | null
+          num_users?: number | null
           priority?: Database["public"]["Enums"]["project_priority"]
+          product_id?: string | null
+          product_version?: string | null
           progress_percentage?: number
           start_date?: string | null
           status?: Database["public"]["Enums"]["project_status"]
+          trunk?: string | null
           updated_at?: string
         }
         Update: {
@@ -319,11 +355,17 @@ export type Database = {
           deadline?: string | null
           description?: string | null
           id?: string
+          location?: string | null
           name?: string
+          num_channels?: number | null
+          num_users?: number | null
           priority?: Database["public"]["Enums"]["project_priority"]
+          product_id?: string | null
+          product_version?: string | null
           progress_percentage?: number
           start_date?: string | null
           status?: Database["public"]["Enums"]["project_status"]
+          trunk?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -332,6 +374,13 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "projects_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "product_catalog"
             referencedColumns: ["id"]
           },
         ]
