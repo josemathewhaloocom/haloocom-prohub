@@ -1,116 +1,178 @@
 
-# Add Product Details to Projects
+# Project Detail Hub — Full Implementation Plan
 
-## What's Being Added
+## Summary of Changes Requested
 
-Five new fields will be added to the project creation form and project detail view:
-
-1. **Product Name** — dropdown, values managed by admin from a dedicated product catalog table
-2. **Product Version** — free-text input
-3. **Number of Users** — numeric input
-4. **Number of Channels** — numeric input
-5. **Trunk** — free-text input
-6. **Location** — free-text input
-
-A new admin-only **Product Catalog** section will be added in Settings so admins can add/remove product names from the dropdown.
+1. **Project Detail as Lifecycle Hub** — Daily updates and documents embedded inside the Project Detail page as tabs, so everything about a project is in one place.
+2. **Admin Status Control** — Admin can change the project status directly from the Project Detail page.
+3. **Document Upload** — Engineers can upload files to a project; admins can approve/reject them.
+4. **Document Signing** — Client-facing signature pad embedded in documents, with signature capture and storage.
+5. **Progress Sync Fix** — When a daily update is submitted from inside a project, the project's `progress_percentage` should update immediately and visibly.
+6. **SMTP / Email Settings** — A new admin-only "Email Settings" section in Settings to configure SMTP credentials for sending notifications.
 
 ---
 
-## Database Changes (Migration)
+## What's NOT Changing
 
-### New Table: `product_catalog`
+- The standalone `/updates` and `/documents` pages remain as global views (useful for admins).
+- The sidebar navigation stays the same.
+- The database schema for `daily_updates` and `documents` does not change — only UI is added.
 
-Stores the list of products that appear in the dropdown.
+---
+
+## Phase 1: Database Changes (Migration)
+
+### 1.1 — New Table: `smtp_settings`
+
+A new table to store admin-configured SMTP settings. Only one row is expected (global config).
 
 ```text
-id          uuid  (primary key)
-name        text  (unique, not null)
-is_active   boolean (default true)
-created_by  uuid
-created_at  timestamptz
+id          uuid (primary key)
+host        text
+port        integer (default 587)
+username    text
+password    text (stored encrypted at rest via Supabase)
+from_email  text
+from_name   text
+use_ssl     boolean (default false)
+use_tls     boolean (default true)
+updated_by  uuid
+updated_at  timestamptz
 ```
 
-RLS Policies:
+RLS:
 - Admins: full CRUD
-- All authenticated users: SELECT (so the dropdown works for engineers viewing their assigned projects)
+- Non-admins: no access (SMTP password must be protected)
 
-### Extend `projects` Table
+### 1.2 — Extend `documents` Table
 
-Add six new nullable columns:
+Add two columns needed for the document signing and upload workflow:
 
-| Column | Type |
+```text
+document_type   text (nullable) — e.g. 'sow', 'architecture', 'sign_off', 'other'
+signed_at       timestamptz (nullable)
+signer_name     text (nullable)
+signer_ip       text (nullable)
+```
+
+---
+
+## Phase 2: Project Detail Page — Full Rebuild
+
+The `ProjectDetail.tsx` page becomes the central hub with **5 tabs**:
+
+```text
+[Overview] [Daily Updates] [Documents] [Status] [Engineers]
+```
+
+### Tab 1: Overview (existing content)
+- Project metadata cards (start date, deadline, budget, progress bar)
+- Product Details card
+- Description
+- Progress bar now **re-fetches from the database** after every daily update submission
+
+### Tab 2: Daily Updates (new in project detail)
+- Shows all updates for **this specific project** only (filtered by `project_id`)
+- Engineers can submit a new daily update directly from here (the project is pre-selected)
+- When submitted, it calls `supabase.from("projects").update({ progress_percentage })` AND re-fetches the project — so the progress bar on the Overview tab updates instantly
+- Admins can see all updates with engineer names
+- Engineers see only their own updates
+
+**Progress Fix:** Currently the progress update call exists in `DailyUpdates.tsx` but the `ProjectDetail.tsx` page doesn't re-fetch after update. By embedding the submit form inside the project detail, both the update list and the progress bar will refresh together.
+
+### Tab 3: Documents (new in project detail)
+Two sections:
+
+**Upload Section (Engineers + Admins)**
+- File input (accepts PDF, images, Word docs)
+- Document type selector: SOW / Architecture Diagram / Sign-Off / Security Guidelines / Training Report / Other
+- Upload triggers: read file → upload to `documents` storage bucket → insert record into `documents` table
+- Shows upload progress
+
+**Document List**
+- Shows all documents for this project
+- Columns: File Name, Type, Status (pending/approved/rejected), Uploaded By, Date, Actions
+- Admin actions: Approve / Reject (updates `approval_status`)
+- Engineer actions: View, Delete (only pending own docs)
+- **Signature button**: For sign-off type documents, shows a "Get Signed" button that opens a canvas signature pad dialog
+
+**Signature Pad Dialog**
+- Canvas element for drawing signature (mouse + touch)
+- Fields: Signer Name, Signer Email (pre-filled from project's `client_email`)
+- On submit: saves signature as base64 data URL to `documents.signature_url`, sets `signed_at = now()`, saves `signer_name`
+- No external library needed — HTML5 Canvas API
+
+### Tab 4: Status Management (Admin Only)
+- Shows current status as a visual pipeline/stepper
+- Admin can select the next allowed status from a dropdown or click a "Move to Next Stage" button
+- All 11 lifecycle statuses available (from the approved Haloocom plan)
+- Status options: Open → QC Completed → Kick-Off Scheduled → Site Ready → Scheduled → In Progress → Client Signing Pending → Client Signed → Pending Admin Approval → Closed
+- On-Hold option always available as a side-branch
+- Writes an audit note (optional text field) alongside every status change
+- Status change calls `supabase.from("projects").update({ status })` with confirmation toast
+
+### Tab 5: Engineers (existing content moved)
+- Assign/unassign engineers (existing functionality, just moved to a tab)
+
+---
+
+## Phase 3: Settings Page — SMTP Email Configuration
+
+Add a new "Email / SMTP" card in `SettingsPage.tsx` (admin only).
+
+**Fields:**
+- SMTP Host (e.g. smtp.gmail.com)
+- SMTP Port (default 587)
+- Username
+- Password (masked input)
+- From Email
+- From Name
+- Use TLS toggle
+- Use SSL toggle
+
+**Behavior:**
+- On save: upsert into `smtp_settings` table
+- Shows "Test Connection" button (for now, just saves and shows success — actual test can be wired later via an edge function)
+- Loads existing config on mount
+
+---
+
+## Phase 4: Progress Sync Fix
+
+The bug: when a daily update is submitted from `DailyUpdates.tsx`, the project's `progress_percentage` is updated in the DB but the Project Detail page doesn't know about it.
+
+The fix inside Project Detail:
+- After the daily update form is submitted inside the project detail tab, call `fetchProject()` immediately
+- The progress bar on the Overview tab reads from `project.progress_percentage` which is now up-to-date
+- The progress bar updates visually without any page refresh
+
+---
+
+## Files to Create / Edit
+
+| File | Change |
 |---|---|
-| `product_id` | uuid (FK → product_catalog.id) |
-| `product_version` | text |
-| `num_users` | integer |
-| `num_channels` | integer |
-| `trunk` | text |
-| `location` | text |
+| `src/pages/ProjectDetail.tsx` | Full rebuild with 5 tabs, daily updates tab, documents tab, status tab |
+| `src/pages/SettingsPage.tsx` | Add SMTP email settings card (admin only) |
+| `src/integrations/supabase/types.ts` | Auto-updated by migration |
+| Migration SQL | Create `smtp_settings` table, extend `documents` table |
+
+The standalone `DailyUpdates.tsx` and `Documents.tsx` pages are **not changed** — they remain as global views.
 
 ---
 
-## Files Changed
+## Implementation Order
 
-### 1. `src/pages/Projects.tsx`
-- Add product fields to the "Create Project" dialog form:
-  - Product Name → Select dropdown (fetched from `product_catalog`)
-  - Product Version → text input
-  - No. of Users → number input
-  - No. of Channels → number input
-  - Trunk → text input
-  - Location → text input
-- Fetch the product catalog list on dialog open
-
-### 2. `src/pages/ProjectDetail.tsx`
-- Add a new "Product Details" info card section below the existing metadata cards
-- Display: Product Name, Product Version, Users, Channels, Trunk, Location
-
-### 3. `src/pages/SettingsPage.tsx`
-- Add a new **"Product Catalog"** tab/section (admin-only)
-- Admin can:
-  - View existing product names
-  - Add a new product name
-  - Toggle active/inactive (soft delete)
+1. Run database migration (smtp_settings table + document type/signing columns)
+2. Rebuild `ProjectDetail.tsx` with tabs (Overview, Daily Updates, Documents, Status, Engineers)
+3. Add SMTP settings card to `SettingsPage.tsx`
 
 ---
 
-## How It Looks in the UI
+## Technical Notes
 
-**Create Project dialog** — new section added below Description:
-
-```text
-[ Product Name ▼ ]   [ Product Version  ]
-[ No. of Users    ]   [ No. of Channels  ]
-[ Trunk           ]   [ Location         ]
-```
-
-**Project Detail page** — new card "Product Details":
-
-```text
-┌─────────────────────────────────────────────┐
-│  Product Details                            │
-│  Product: Haloocom UC  v2.1                 │
-│  Users: 150    Channels: 24    Trunk: SIP   │
-│  Location: Dubai HQ                         │
-└─────────────────────────────────────────────┘
-```
-
-**Settings page** — new "Product Catalog" section (admin only):
-
-```text
-┌─────────────────────────────────────────────┐
-│  Product Catalog                [+ Add]     │
-│  • Haloocom UC        [Active]  [Remove]    │
-│  • Haloocom CC        [Active]  [Remove]    │
-│  • Haloocom Messaging [Active]  [Remove]    │
-└─────────────────────────────────────────────┘
-```
-
----
-
-## Implementation Steps
-
-1. Run database migration — create `product_catalog` table and add 6 new columns to `projects`
-2. Update `SettingsPage.tsx` — add Product Catalog management for admins
-3. Update `Projects.tsx` — add product fields to the create dialog
-4. Update `ProjectDetail.tsx` — display product details card
+- File uploads use the existing `documents` storage bucket (already configured, private)
+- Signed URLs will be generated via `supabase.storage.from("documents").createSignedUrl()` for viewing files
+- The signature canvas uses native `HTMLCanvasElement` — no new npm package needed
+- The 11 Haloocom lifecycle statuses (from the existing approved plan) will be used in the Status tab; the current DB still has the old enum values (`upcoming`, `in_progress`, etc.) — the Status tab dropdown will show all DB-valid values (the full lifecycle migration was planned but not yet run, so the status tab initially shows the 4 current statuses and will expand once the lifecycle migration runs)
+- SMTP password stored in the DB row — no plaintext in code or env vars
