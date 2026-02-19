@@ -7,8 +7,21 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Plus, Trash2, PackageOpen } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Plus, Trash2, PackageOpen, Mail } from "lucide-react";
 import { toast } from "sonner";
+
+interface SmtpSettings {
+  id?: string;
+  host: string;
+  port: number;
+  username: string;
+  password: string;
+  from_email: string;
+  from_name: string;
+  use_ssl: boolean;
+  use_tls: boolean;
+}
 
 interface Product {
   id: string;
@@ -28,6 +41,14 @@ export default function SettingsPage() {
   const [newProductName, setNewProductName] = useState("");
   const [addingProduct, setAddingProduct] = useState(false);
 
+  // SMTP settings state
+  const [smtp, setSmtp] = useState<SmtpSettings>({
+    host: "", port: 587, username: "", password: "",
+    from_email: "", from_name: "", use_ssl: false, use_tls: true,
+  });
+  const [smtpId, setSmtpId] = useState<string | null>(null);
+  const [savingSmtp, setSavingSmtp] = useState(false);
+
   const handleSave = async () => {
     if (!user) return;
     setSaving(true);
@@ -46,8 +67,37 @@ export default function SettingsPage() {
     setProducts((data as unknown as Product[]) ?? []);
   };
 
+  const fetchSmtpSettings = async () => {
+    const { data } = await (supabase as any).from("smtp_settings").select("*").limit(1).maybeSingle();
+    if (data) {
+      setSmtpId(data.id);
+      setSmtp({
+        host: data.host ?? "", port: data.port ?? 587,
+        username: data.username ?? "", password: data.password ?? "",
+        from_email: data.from_email ?? "", from_name: data.from_name ?? "",
+        use_ssl: data.use_ssl ?? false, use_tls: data.use_tls ?? true,
+      });
+    }
+  };
+
+  const handleSaveSmtp = async () => {
+    setSavingSmtp(true);
+    const payload = { ...smtp, updated_by: user?.id, updated_at: new Date().toISOString() };
+    let error;
+    if (smtpId) {
+      ({ error } = await (supabase as any).from("smtp_settings").update(payload).eq("id", smtpId));
+    } else {
+      const { data, error: insertError } = await (supabase as any).from("smtp_settings").insert(payload).select().single();
+      error = insertError;
+      if (data) setSmtpId(data.id);
+    }
+    if (error) toast.error(error.message);
+    else toast.success("SMTP settings saved!");
+    setSavingSmtp(false);
+  };
+
   useEffect(() => {
-    if (role === "admin") fetchProducts();
+    if (role === "admin") { fetchProducts(); fetchSmtpSettings(); }
   }, [role]);
 
   const handleAddProduct = async () => {
@@ -178,6 +228,70 @@ export default function SettingsPage() {
                 ))}
               </ul>
             )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* SMTP / Email Settings — admin only */}
+      {role === "admin" && (
+        <Card className="max-w-lg">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Mail className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-base">Email / SMTP Settings</CardTitle>
+            </div>
+            <CardDescription>Configure your outgoing email server for notifications.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2 col-span-2 sm:col-span-1">
+                <Label>SMTP Host</Label>
+                <Input placeholder="smtp.gmail.com" value={smtp.host} onChange={(e) => setSmtp({ ...smtp, host: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Port</Label>
+                <Input type="number" placeholder="587" value={smtp.port} onChange={(e) => setSmtp({ ...smtp, port: Number(e.target.value) })} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Username</Label>
+                <Input placeholder="user@example.com" value={smtp.username} onChange={(e) => setSmtp({ ...smtp, username: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Password</Label>
+                <Input type="password" placeholder="••••••••" value={smtp.password} onChange={(e) => setSmtp({ ...smtp, password: e.target.value })} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>From Email</Label>
+                <Input placeholder="noreply@company.com" value={smtp.from_email} onChange={(e) => setSmtp({ ...smtp, from_email: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>From Name</Label>
+                <Input placeholder="Haloocom ProHub" value={smtp.from_name} onChange={(e) => setSmtp({ ...smtp, from_name: e.target.value })} />
+              </div>
+            </div>
+            <Separator />
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">Use TLS</p>
+                <p className="text-xs text-muted-foreground">Recommended for most providers</p>
+              </div>
+              <Switch checked={smtp.use_tls} onCheckedChange={(v) => setSmtp({ ...smtp, use_tls: v })} />
+            </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">Use SSL</p>
+                <p className="text-xs text-muted-foreground">For legacy port 465</p>
+              </div>
+              <Switch checked={smtp.use_ssl} onCheckedChange={(v) => setSmtp({ ...smtp, use_ssl: v })} />
+            </div>
+            <Separator />
+            <Button onClick={handleSaveSmtp} disabled={savingSmtp}>
+              {savingSmtp ? "Saving..." : "Save SMTP Settings"}
+            </Button>
           </CardContent>
         </Card>
       )}
