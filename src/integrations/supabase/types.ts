@@ -71,12 +71,16 @@ export type Database = {
           approved_at: string | null
           approved_by: string | null
           created_at: string
+          document_type: string | null
           file_name: string
           file_url: string
           id: string
           notes: string | null
           project_id: string
           signature_url: string | null
+          signed_at: string | null
+          signer_ip: string | null
+          signer_name: string | null
           updated_at: string
           uploaded_by: string
         }
@@ -85,12 +89,16 @@ export type Database = {
           approved_at?: string | null
           approved_by?: string | null
           created_at?: string
+          document_type?: string | null
           file_name: string
           file_url: string
           id?: string
           notes?: string | null
           project_id: string
           signature_url?: string | null
+          signed_at?: string | null
+          signer_ip?: string | null
+          signer_name?: string | null
           updated_at?: string
           uploaded_by: string
         }
@@ -99,12 +107,16 @@ export type Database = {
           approved_at?: string | null
           approved_by?: string | null
           created_at?: string
+          document_type?: string | null
           file_name?: string
           file_url?: string
           id?: string
           notes?: string | null
           project_id?: string
           signature_url?: string | null
+          signed_at?: string | null
+          signer_ip?: string | null
+          signer_name?: string | null
           updated_at?: string
           uploaded_by?: string
         }
@@ -384,6 +396,48 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      smtp_settings: {
+        Row: {
+          from_email: string | null
+          from_name: string | null
+          host: string | null
+          id: string
+          password: string | null
+          port: number | null
+          updated_at: string | null
+          updated_by: string | null
+          use_ssl: boolean | null
+          use_tls: boolean | null
+          username: string | null
+        }
+        Insert: {
+          from_email?: string | null
+          from_name?: string | null
+          host?: string | null
+          id?: string
+          password?: string | null
+          port?: number | null
+          updated_at?: string | null
+          updated_by?: string | null
+          use_ssl?: boolean | null
+          use_tls?: boolean | null
+          username?: string | null
+        }
+        Update: {
+          from_email?: string | null
+          from_name?: string | null
+          host?: string | null
+          id?: string
+          password?: string | null
+          port?: number | null
+          updated_at?: string | null
+          updated_by?: string | null
+          use_ssl?: boolean | null
+          use_tls?: boolean | null
+          username?: string | null
+        }
+        Relationships: []
       }
       user_roles: {
         Row: {
