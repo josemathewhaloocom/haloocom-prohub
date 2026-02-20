@@ -1,1 +1,10 @@
 project_id = "plexddiwbxzvjnfobfyb"
+
+[functions.invite-engineer]
+verify_jwt = false
+
+[functions.send-email]
+verify_jwt = false
+
+[functions.sign-document]
+verify_jwt = false
