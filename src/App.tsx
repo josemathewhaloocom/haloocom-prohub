@@ -14,6 +14,7 @@ import SettingsPage from "@/pages/SettingsPage";
 import ProjectDetail from "@/pages/ProjectDetail";
 import DailyUpdates from "@/pages/DailyUpdates";
 import NotFound from "./pages/NotFound";
+import PublicSign from "./pages/PublicSign";
 
 const queryClient = new QueryClient();
 
@@ -26,6 +27,7 @@ const App = () => (
         <AuthProvider>
           <Routes>
             <Route path="/auth" element={<Auth />} />
+            <Route path="/sign/:token" element={<PublicSign />} />
             <Route element={<AppLayout />}>
               <Route path="/" element={<Dashboard />} />
               <Route path="/projects" element={<Projects />} />
