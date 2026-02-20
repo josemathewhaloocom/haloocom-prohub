@@ -1,178 +1,170 @@
 
-# Project Detail Hub — Full Implementation Plan
 
-## Summary of Changes Requested
+# Comprehensive Project Hub Enhancement Plan
 
-1. **Project Detail as Lifecycle Hub** — Daily updates and documents embedded inside the Project Detail page as tabs, so everything about a project is in one place.
-2. **Admin Status Control** — Admin can change the project status directly from the Project Detail page.
-3. **Document Upload** — Engineers can upload files to a project; admins can approve/reject them.
-4. **Document Signing** — Client-facing signature pad embedded in documents, with signature capture and storage.
-5. **Progress Sync Fix** — When a daily update is submitted from inside a project, the project's `progress_percentage` should update immediately and visibly.
-6. **SMTP / Email Settings** — A new admin-only "Email Settings" section in Settings to configure SMTP credentials for sending notifications.
+This plan covers all requested changes organized into 7 phases for clear implementation.
 
 ---
 
-## What's NOT Changing
+## Phase 1: Database Migration
 
-- The standalone `/updates` and `/documents` pages remain as global views (useful for admins).
-- The sidebar navigation stays the same.
-- The database schema for `daily_updates` and `documents` does not change — only UI is added.
+### 1.1 Add Haloocom Lifecycle Statuses
+Replace the current 4-status enum with the full 11-stage lifecycle:
+- `open`, `qc_completed`, `kick_off_scheduled`, `site_ready`, `on_hold`, `scheduled`, `in_progress`, `client_signing_pending`, `client_signed`, `pending_admin_approval`, `closed`
 
----
+This requires creating a new enum and migrating the `projects.status` column (Postgres does not allow removing values from enums easily, so we create a new type).
 
-## Phase 1: Database Changes (Migration)
+### 1.2 Add `signing_token` and `signing_token_expires_at` to `documents`
+For the public client signing portal, each sign-off document needs a unique token and expiry.
 
-### 1.1 — New Table: `smtp_settings`
-
-A new table to store admin-configured SMTP settings. Only one row is expected (global config).
-
+### 1.3 Create `project_field_config` table (dynamic fields)
+Stores admin-defined custom fields per project:
 ```text
-id          uuid (primary key)
-host        text
-port        integer (default 587)
-username    text
-password    text (stored encrypted at rest via Supabase)
-from_email  text
-from_name   text
-use_ssl     boolean (default false)
-use_tls     boolean (default true)
-updated_by  uuid
-updated_at  timestamptz
+id          uuid PK
+field_name  text
+field_type  text (text, number, date, select)
+is_required boolean default false
+sort_order  integer default 0
+created_by  uuid
+created_at  timestamptz
 ```
 
-RLS:
-- Admins: full CRUD
-- Non-admins: no access (SMTP password must be protected)
-
-### 1.2 — Extend `documents` Table
-
-Add two columns needed for the document signing and upload workflow:
-
+### 1.4 Create `project_custom_values` table
+Stores actual values for custom fields per project:
 ```text
-document_type   text (nullable) — e.g. 'sow', 'architecture', 'sign_off', 'other'
-signed_at       timestamptz (nullable)
-signer_name     text (nullable)
-signer_ip       text (nullable)
+id          uuid PK
+project_id  uuid FK -> projects
+field_id    uuid FK -> project_field_config
+value       text
 ```
 
----
-
-## Phase 2: Project Detail Page — Full Rebuild
-
-The `ProjectDetail.tsx` page becomes the central hub with **5 tabs**:
-
-```text
-[Overview] [Daily Updates] [Documents] [Status] [Engineers]
-```
-
-### Tab 1: Overview (existing content)
-- Project metadata cards (start date, deadline, budget, progress bar)
-- Product Details card
-- Description
-- Progress bar now **re-fetches from the database** after every daily update submission
-
-### Tab 2: Daily Updates (new in project detail)
-- Shows all updates for **this specific project** only (filtered by `project_id`)
-- Engineers can submit a new daily update directly from here (the project is pre-selected)
-- When submitted, it calls `supabase.from("projects").update({ progress_percentage })` AND re-fetches the project — so the progress bar on the Overview tab updates instantly
-- Admins can see all updates with engineer names
-- Engineers see only their own updates
-
-**Progress Fix:** Currently the progress update call exists in `DailyUpdates.tsx` but the `ProjectDetail.tsx` page doesn't re-fetch after update. By embedding the submit form inside the project detail, both the update list and the progress bar will refresh together.
-
-### Tab 3: Documents (new in project detail)
-Two sections:
-
-**Upload Section (Engineers + Admins)**
-- File input (accepts PDF, images, Word docs)
-- Document type selector: SOW / Architecture Diagram / Sign-Off / Security Guidelines / Training Report / Other
-- Upload triggers: read file → upload to `documents` storage bucket → insert record into `documents` table
-- Shows upload progress
-
-**Document List**
-- Shows all documents for this project
-- Columns: File Name, Type, Status (pending/approved/rejected), Uploaded By, Date, Actions
-- Admin actions: Approve / Reject (updates `approval_status`)
-- Engineer actions: View, Delete (only pending own docs)
-- **Signature button**: For sign-off type documents, shows a "Get Signed" button that opens a canvas signature pad dialog
-
-**Signature Pad Dialog**
-- Canvas element for drawing signature (mouse + touch)
-- Fields: Signer Name, Signer Email (pre-filled from project's `client_email`)
-- On submit: saves signature as base64 data URL to `documents.signature_url`, sets `signed_at = now()`, saves `signer_name`
-- No external library needed — HTML5 Canvas API
-
-### Tab 4: Status Management (Admin Only)
-- Shows current status as a visual pipeline/stepper
-- Admin can select the next allowed status from a dropdown or click a "Move to Next Stage" button
-- All 11 lifecycle statuses available (from the approved Haloocom plan)
-- Status options: Open → QC Completed → Kick-Off Scheduled → Site Ready → Scheduled → In Progress → Client Signing Pending → Client Signed → Pending Admin Approval → Closed
-- On-Hold option always available as a side-branch
-- Writes an audit note (optional text field) alongside every status change
-- Status change calls `supabase.from("projects").update({ status })` with confirmation toast
-
-### Tab 5: Engineers (existing content moved)
-- Assign/unassign engineers (existing functionality, just moved to a tab)
+RLS: Admins full CRUD; engineers SELECT on assigned projects.
 
 ---
 
-## Phase 3: Settings Page — SMTP Email Configuration
+## Phase 2: Admin Can Edit All Project Fields
 
-Add a new "Email / SMTP" card in `SettingsPage.tsx` (admin only).
-
-**Fields:**
-- SMTP Host (e.g. smtp.gmail.com)
-- SMTP Port (default 587)
-- Username
-- Password (masked input)
-- From Email
-- From Name
-- Use TLS toggle
-- Use SSL toggle
-
-**Behavior:**
-- On save: upsert into `smtp_settings` table
-- Shows "Test Connection" button (for now, just saves and shows success — actual test can be wired later via an edge function)
-- Loads existing config on mount
+### `ProjectDetail.tsx` - Overview Tab
+- Add an "Edit Project" button (admin only) that opens a dialog pre-filled with all current project fields (name, client info, dates, budget, product details, description)
+- On save, updates the `projects` row and re-fetches
 
 ---
 
-## Phase 4: Progress Sync Fix
+## Phase 3: Document Signing Portal + Link Generation
 
-The bug: when a daily update is submitted from `DailyUpdates.tsx`, the project's `progress_percentage` is updated in the DB but the Project Detail page doesn't know about it.
+### 3.1 Generate signing link on document upload
+- When a sign-off document is uploaded, generate a unique `signing_token` (UUID) and store it in the `documents` row
+- Display a "Copy Signing Link" button that copies `{origin}/sign/{token}` to clipboard
+- This link can be shared with the client via email
 
-The fix inside Project Detail:
-- After the daily update form is submitted inside the project detail tab, call `fetchProject()` immediately
-- The progress bar on the Overview tab reads from `project.progress_percentage` which is now up-to-date
-- The progress bar updates visually without any page refresh
+### 3.2 Public Signing Page (`/sign/:token`)
+- New file: `src/pages/PublicSign.tsx`
+- Route: `/sign/:token` (outside `AppLayout`, no auth required)
+- Flow:
+  1. Looks up document by `signing_token` where `signed_at IS NULL` and token is not expired
+  2. Shows document name, project name, and a "View Document" button (signed URL)
+  3. Signature pad (canvas) + signer name input
+  4. On submit: updates `signature_url`, `signed_at`, `signer_name`, `signer_ip`
+- Uses the service role via a new edge function `sign-document` for the unauthenticated update
+
+### 3.3 View signed document + approve/reject flow change
+- Always show "View" button on all documents (not just approved)
+- Show signature image inline when `signature_url` exists
+- Approve/Reject buttons available for admin on ALL documents (not just pending) -- admin sees them after client signs so they can review the signature and then approve/reject
 
 ---
 
-## Files to Create / Edit
+## Phase 4: One Engineer Per Project + Email Notification
 
-| File | Change |
+### 4.1 Enforce one engineer per project
+- In `ProjectDetail.tsx`, hide "Assign Engineer" button if one is already assigned
+- Add a unique constraint on `project_assignments(project_id)` via migration (or enforce in code)
+
+### 4.2 Send email on engineer assignment
+- New edge function: `send-email`
+  - Reads SMTP settings from `smtp_settings` table
+  - Accepts `to`, `subject`, `html` body
+  - Sends email using SMTP (via Deno's `smtp` module or raw SMTP)
+- Modify `handleAssign` in `ProjectDetail.tsx`:
+  - After successful assignment, invoke `send-email` edge function with engineer's email, project name, and assignment details
+
+---
+
+## Phase 5: Enhanced Dashboard, Projects List, Engineers Page
+
+### 5.1 Projects List Table Columns
+Update `Projects.tsx` table to show:
+- Client Name, Product, Engineer, Status, Progress, Start Date, Go Live Date (deadline)
+- Fetch product names and assigned engineer names alongside projects
+
+### 5.2 Engineers Page Enhancement
+Update `Engineers.tsx` to show per-engineer:
+- Name, Active Projects, Completed Projects, In Progress, On Hold, Total Projects
+- Fetch all project assignments + project statuses to compute counts
+
+### 5.3 Date Filter on Dashboard, Projects, Engineers
+Add a date range filter (Start Date / End Date) to:
+- `Dashboard.tsx` - filter projects by `start_date`/`deadline` within range
+- `Projects.tsx` - filter by date range
+- `Engineers.tsx` - filter projects within date range
+
+---
+
+## Phase 6: Documents Page - Group by Project
+
+Update `Documents.tsx`:
+- Group documents by project name using collapsible sections
+- Each project section shows all its documents with view/status info
+- Add search/filter by project name
+
+---
+
+## Phase 7: Dynamic Project Fields (Admin Configurable)
+
+### Settings Page Addition
+Add a "Project Fields" section in Settings (admin only):
+- List existing custom fields with name, type, required toggle
+- Add new field form (name, type: text/number/date/select, required)
+- Delete/reorder fields
+
+### Project Detail Integration
+- In the Overview tab, render custom fields below the standard fields
+- Admin edit dialog includes custom fields
+- Custom field values stored in `project_custom_values` table
+
+---
+
+## Files to Create
+
+| File | Purpose |
 |---|---|
-| `src/pages/ProjectDetail.tsx` | Full rebuild with 5 tabs, daily updates tab, documents tab, status tab |
-| `src/pages/SettingsPage.tsx` | Add SMTP email settings card (admin only) |
+| `src/pages/PublicSign.tsx` | Public client signing portal |
+| `supabase/functions/sign-document/index.ts` | Unauthenticated document signing endpoint |
+| `supabase/functions/send-email/index.ts` | SMTP email sending function |
+
+## Files to Edit
+
+| File | Changes |
+|---|---|
+| `src/App.tsx` | Add `/sign/:token` route |
+| `src/pages/ProjectDetail.tsx` | Admin edit dialog, one-engineer enforcement, signing link generation, view signed docs, lifecycle statuses, custom fields display |
+| `src/pages/Projects.tsx` | New table columns (client, product, engineer, start date, go-live), date filter, lifecycle statuses |
+| `src/pages/Engineers.tsx` | Enhanced stats per engineer, date filter |
+| `src/pages/Dashboard.tsx` | Date range filter |
+| `src/pages/Documents.tsx` | Group by project, search |
+| `src/pages/SettingsPage.tsx` | Dynamic field config section |
 | `src/integrations/supabase/types.ts` | Auto-updated by migration |
-| Migration SQL | Create `smtp_settings` table, extend `documents` table |
-
-The standalone `DailyUpdates.tsx` and `Documents.tsx` pages are **not changed** — they remain as global views.
-
----
 
 ## Implementation Order
 
-1. Run database migration (smtp_settings table + document type/signing columns)
-2. Rebuild `ProjectDetail.tsx` with tabs (Overview, Daily Updates, Documents, Status, Engineers)
-3. Add SMTP settings card to `SettingsPage.tsx`
+1. Database migration (lifecycle enum, signing tokens, dynamic fields tables, unique constraint)
+2. `send-email` edge function
+3. `sign-document` edge function
+4. `PublicSign.tsx` + route
+5. `ProjectDetail.tsx` rebuild (edit, signing links, lifecycle statuses, one-engineer, email trigger, custom fields)
+6. `Projects.tsx` (new columns, date filter, lifecycle statuses)
+7. `Engineers.tsx` (enhanced stats, date filter)
+8. `Dashboard.tsx` (date filter)
+9. `Documents.tsx` (group by project)
+10. `SettingsPage.tsx` (dynamic field config)
 
----
-
-## Technical Notes
-
-- File uploads use the existing `documents` storage bucket (already configured, private)
-- Signed URLs will be generated via `supabase.storage.from("documents").createSignedUrl()` for viewing files
-- The signature canvas uses native `HTMLCanvasElement` — no new npm package needed
-- The 11 Haloocom lifecycle statuses (from the existing approved plan) will be used in the Status tab; the current DB still has the old enum values (`upcoming`, `in_progress`, etc.) — the Status tab dropdown will show all DB-valid values (the full lifecycle migration was planned but not yet run, so the status tab initially shows the 4 current statuses and will expand once the lifecycle migration runs)
-- SMTP password stored in the DB row — no plaintext in code or env vars
