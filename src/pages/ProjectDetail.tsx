@@ -42,7 +42,7 @@ const PROJECT_STATUSES = [
   { value: "client_signing_pending", label: "Client Signing Pending" },
   { value: "client_signed", label: "Client Signed" },
   { value: "pending_admin_approval", label: "Pending Admin Approval" },
-  { value: "closed", label: "Closed" },
+  { value: "closed", label: "Completed" },
 ];
 
 const STATUS_STYLES: Record<string, string> = {
@@ -342,9 +342,9 @@ export default function ProjectDetail() {
     setUploadProgress(70);
 
     // Generate signing token for sign-off docs
-    const isSignOff = uploadDocType === "sign_off";
-    const signingToken = isSignOff ? crypto.randomUUID() : null;
-    const expiresAt = isSignOff ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() : null;
+    const needsSignature = ["sign_off", "security_guidelines", "training_report"].includes(uploadDocType);
+    const signingToken = needsSignature ? crypto.randomUUID() : null;
+    const expiresAt = needsSignature ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() : null;
 
     const { error: dbError } = await supabase.from("documents").insert({
       project_id: id, uploaded_by: user.id, file_name: uploadFile.name,
@@ -354,7 +354,7 @@ export default function ProjectDetail() {
     if (dbError) { toast.error(dbError.message); setUploading(false); setUploadProgress(0); return; }
     setUploadProgress(100);
 
-    if (isSignOff && signingToken) {
+    if (needsSignature && signingToken) {
       const link = `${window.location.origin}/sign/${signingToken}`;
       await navigator.clipboard.writeText(link).catch(() => {});
       toast.success("Document uploaded! Signing link copied to clipboard.");
@@ -367,8 +367,15 @@ export default function ProjectDetail() {
 
   const handleViewDocument = async (doc: ProjectDocument) => {
     const { data } = await supabase.storage.from("documents").createSignedUrl(doc.file_url, 60);
-    if (data?.signedUrl) window.open(data.signedUrl, "_blank");
-    else toast.error("Could not generate download link.");
+    if (data?.signedUrl) {
+      const a = document.createElement("a");
+      a.href = data.signedUrl;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } else toast.error("Could not generate download link.");
   };
 
   const handleApproveReject = async (docId: string, status: "approved" | "rejected") => {

@@ -36,7 +36,7 @@ const PROJECT_STATUSES = [
   { value: "client_signing_pending", label: "Client Signing Pending" },
   { value: "client_signed", label: "Client Signed" },
   { value: "pending_admin_approval", label: "Pending Admin Approval" },
-  { value: "closed", label: "Closed" },
+  { value: "closed", label: "Completed" },
 ];
 
 const STATUS_STYLES: Record<string, string> = {

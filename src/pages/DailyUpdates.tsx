@@ -70,7 +70,7 @@ export default function DailyUpdates() {
   const fetchProjects = async () => {
     // Engineers only see assigned projects; admins see all
     if (role === "admin") {
-      const { data } = await supabase.from("projects").select("id, name").neq("status", "completed");
+      const { data } = await supabase.from("projects").select("id, name").neq("status", "closed" as any);
       setProjects(data ?? []);
     } else if (user) {
       const { data: assignments } = await supabase
@@ -79,7 +79,7 @@ export default function DailyUpdates() {
         .eq("engineer_id", user.id);
       if (!assignments?.length) { setProjects([]); return; }
       const ids = assignments.map((a) => a.project_id);
-      const { data } = await supabase.from("projects").select("id, name").in("id", ids).neq("status", "completed");
+      const { data } = await supabase.from("projects").select("id, name").in("id", ids).neq("status", "closed" as any);
       setProjects(data ?? []);
     }
   };
