@@ -55,8 +55,15 @@ export default function Documents() {
 
   const handleViewDocument = async (doc: DocWithProject) => {
     const { data } = await supabase.storage.from("documents").createSignedUrl(doc.file_url, 60);
-    if (data?.signedUrl) window.open(data.signedUrl, "_blank");
-    else toast.error("Could not generate download link.");
+    if (data?.signedUrl) {
+      const a = document.createElement("a");
+      a.href = data.signedUrl;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } else toast.error("Could not generate download link.");
   };
 
   // Group by project

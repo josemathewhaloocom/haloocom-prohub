@@ -81,6 +81,8 @@ export type Database = {
           signed_at: string | null
           signer_ip: string | null
           signer_name: string | null
+          signing_token: string | null
+          signing_token_expires_at: string | null
           updated_at: string
           uploaded_by: string
         }
@@ -99,6 +101,8 @@ export type Database = {
           signed_at?: string | null
           signer_ip?: string | null
           signer_name?: string | null
+          signing_token?: string | null
+          signing_token_expires_at?: string | null
           updated_at?: string
           uploaded_by: string
         }
@@ -117,6 +121,8 @@ export type Database = {
           signed_at?: string | null
           signer_ip?: string | null
           signer_name?: string | null
+          signing_token?: string | null
+          signing_token_expires_at?: string | null
           updated_at?: string
           uploaded_by?: string
         }
@@ -480,7 +486,18 @@ export type Database = {
       approval_status: "pending" | "approved" | "rejected"
       milestone_status: "pending" | "in_progress" | "completed"
       project_priority: "low" | "medium" | "high" | "critical"
-      project_status: "upcoming" | "in_progress" | "on_hold" | "completed"
+      project_status:
+        | "open"
+        | "qc_completed"
+        | "kick_off_scheduled"
+        | "site_ready"
+        | "on_hold"
+        | "scheduled"
+        | "in_progress"
+        | "client_signing_pending"
+        | "client_signed"
+        | "pending_admin_approval"
+        | "closed"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -612,7 +629,19 @@ export const Constants = {
       approval_status: ["pending", "approved", "rejected"],
       milestone_status: ["pending", "in_progress", "completed"],
       project_priority: ["low", "medium", "high", "critical"],
-      project_status: ["upcoming", "in_progress", "on_hold", "completed"],
+      project_status: [
+        "open",
+        "qc_completed",
+        "kick_off_scheduled",
+        "site_ready",
+        "on_hold",
+        "scheduled",
+        "in_progress",
+        "client_signing_pending",
+        "client_signed",
+        "pending_admin_approval",
+        "closed",
+      ],
     },
   },
 } as const

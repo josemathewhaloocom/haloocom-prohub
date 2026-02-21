@@ -14,14 +14,15 @@ const STATUS_COLORS: Record<string, string> = {
   on_hold: "hsl(0, 72%, 51%)", scheduled: "hsl(38, 92%, 50%)",
   in_progress: "hsl(38, 80%, 55%)", client_signing_pending: "hsl(30, 80%, 55%)",
   client_signed: "hsl(152, 60%, 40%)", pending_admin_approval: "hsl(50, 80%, 50%)",
-  closed: "hsl(152, 70%, 35%)",
+  closed: "hsl(152, 70%, 35%)", completed: "hsl(152, 70%, 35%)",
 };
 
 const STATUS_LABELS: Record<string, string> = {
   open: "Open", qc_completed: "QC Completed", kick_off_scheduled: "Kick-Off Scheduled",
   site_ready: "Site Ready", on_hold: "On Hold", scheduled: "Scheduled",
   in_progress: "In Progress", client_signing_pending: "Client Signing Pending",
-  client_signed: "Client Signed", pending_admin_approval: "Pending Approval", closed: "Closed",
+  client_signed: "Client Signed", pending_admin_approval: "Pending Approval", closed: "Completed",
+  completed: "Completed",
 };
 
 export default function Dashboard() {
@@ -57,8 +58,8 @@ export default function Dashboard() {
     setStats({
       total: filtered.length,
       in_progress: filtered.filter(p => p.status === "in_progress").length,
-      closed: filtered.filter(p => p.status === "closed").length,
-      overdue: filtered.filter(p => p.deadline && p.deadline < now && p.status !== "closed").length,
+      closed: filtered.filter(p => p.status === "closed" || p.status === "completed").length,
+      overdue: filtered.filter(p => p.deadline && p.deadline < now && p.status !== "closed" && p.status !== "completed").length,
     });
     setRecentProjects(filtered.slice(0, 5));
   }, [allProjects, dateFrom, dateTo]);
@@ -81,7 +82,7 @@ export default function Dashboard() {
   const kpiCards = [
     { label: "Total Projects", value: stats.total, icon: FolderKanban, color: "text-primary" },
     { label: "In Progress", value: stats.in_progress, icon: TrendingUp, color: "text-warning" },
-    { label: "Closed", value: stats.closed, icon: CheckCircle2, color: "text-success" },
+    { label: "Completed", value: stats.closed, icon: CheckCircle2, color: "text-success" },
     { label: "Overdue", value: stats.overdue, icon: AlertTriangle, color: "text-destructive" },
   ];
   if (role === "admin") kpiCards.push({ label: "Engineers", value: engineerCount, icon: Users, color: "text-info" });
