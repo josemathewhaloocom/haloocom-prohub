@@ -34,8 +34,7 @@ const PROJECT_STATUSES = [
   { value: "scheduled", label: "Scheduled" },
   { value: "in_progress", label: "In Progress" },
   { value: "client_signing_pending", label: "Client Signing Pending" },
-  { value: "client_signed", label: "Client Signed" },
-  { value: "pending_admin_approval", label: "Pending Admin Approval" },
+  { value: "client_signed", label: "Client Signed Pending Approval" },
   { value: "closed", label: "Completed" },
 ];
 
@@ -48,8 +47,7 @@ const STATUS_STYLES: Record<string, string> = {
   scheduled: "bg-warning/10 text-warning border-warning/20",
   in_progress: "bg-warning/10 text-warning border-warning/20",
   client_signing_pending: "bg-warning/10 text-warning border-warning/20",
-  client_signed: "bg-success/10 text-success border-success/20",
-  pending_admin_approval: "bg-warning/10 text-warning border-warning/20",
+  client_signed: "bg-warning/10 text-warning border-warning/20",
   closed: "bg-success/10 text-success border-success/20",
 };
 

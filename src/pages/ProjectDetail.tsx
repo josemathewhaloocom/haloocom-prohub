@@ -40,8 +40,7 @@ const PROJECT_STATUSES = [
   { value: "scheduled", label: "Scheduled" },
   { value: "in_progress", label: "In Progress" },
   { value: "client_signing_pending", label: "Client Signing Pending" },
-  { value: "client_signed", label: "Client Signed" },
-  { value: "pending_admin_approval", label: "Pending Admin Approval" },
+  { value: "client_signed", label: "Client Signed Pending Approval" },
   { value: "closed", label: "Completed" },
 ];
 
@@ -54,8 +53,7 @@ const STATUS_STYLES: Record<string, string> = {
   scheduled: "bg-warning/10 text-warning border-warning/20",
   in_progress: "bg-warning/10 text-warning border-warning/20",
   client_signing_pending: "bg-warning/10 text-warning border-warning/20",
-  client_signed: "bg-success/10 text-success border-success/20",
-  pending_admin_approval: "bg-warning/10 text-warning border-warning/20",
+  client_signed: "bg-warning/10 text-warning border-warning/20",
   closed: "bg-success/10 text-success border-success/20",
 };
 
@@ -67,6 +65,7 @@ const PRIORITY_STYLES: Record<string, string> = {
 };
 
 const DOCUMENT_TYPES = [
+  { value: "qc_report", label: "QC Report" },
   { value: "sow", label: "Statement of Work (SOW)" },
   { value: "architecture", label: "Architecture Diagram" },
   { value: "sign_off", label: "Sign-Off Document" },
@@ -293,13 +292,17 @@ export default function ProjectDetail() {
     // Send email notification
     const eng = available.find(e => e.id === selectedEngineer);
     if (eng && project) {
-      supabase.functions.invoke("send-email", {
+      const { error: emailError } = await supabase.functions.invoke("send-email", {
         body: {
           to: eng.email,
           subject: `You've been assigned to project: ${project.name}`,
           html: `<h2>Project Assignment</h2><p>Hi ${eng.first_name},</p><p>You have been assigned to the project <strong>${project.name}</strong> for client <strong>${project.client_name}</strong>.</p><p>Please log in to view the project details.</p>`,
         },
-      }).catch(() => {}); // don't block on email failure
+      });
+      if (emailError) {
+        console.error("Email send failed:", emailError);
+        toast.warning("Engineer assigned but email notification failed. Check SMTP settings.");
+      }
     }
 
     toast.success("Engineer assigned!");
@@ -354,6 +357,17 @@ export default function ProjectDetail() {
     if (dbError) { toast.error(dbError.message); setUploading(false); setUploadProgress(0); return; }
     setUploadProgress(100);
 
+    // Auto status change based on document type
+    if (uploadDocType === "qc_report" && project?.status === "open") {
+      await supabase.from("projects").update({ status: "qc_completed" as any }).eq("id", id);
+      toast.info("Project status updated to QC Completed");
+      fetchProject();
+    } else if (needsSignature && project && !["client_signing_pending", "client_signed", "closed"].includes(project.status)) {
+      await supabase.from("projects").update({ status: "client_signing_pending" as any }).eq("id", id);
+      toast.info("Project status updated to Client Signing Pending");
+      fetchProject();
+    }
+
     if (needsSignature && signingToken) {
       const link = `${window.location.origin}/sign/${signingToken}`;
       await navigator.clipboard.writeText(link).catch(() => {});
@@ -366,16 +380,15 @@ export default function ProjectDetail() {
   };
 
   const handleViewDocument = async (doc: ProjectDocument) => {
+    // Open window first to preserve user gesture context (Chrome blocks async popups)
+    const newWindow = window.open("", "_blank");
     const { data } = await supabase.storage.from("documents").createSignedUrl(doc.file_url, 60);
-    if (data?.signedUrl) {
-      const a = document.createElement("a");
-      a.href = data.signedUrl;
-      a.target = "_blank";
-      a.rel = "noopener noreferrer";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    } else toast.error("Could not generate download link.");
+    if (data?.signedUrl && newWindow) {
+      newWindow.location.href = data.signedUrl;
+    } else {
+      if (newWindow) newWindow.close();
+      toast.error("Could not generate download link.");
+    }
   };
 
   const handleApproveReject = async (docId: string, status: "approved" | "rejected") => {
@@ -384,6 +397,14 @@ export default function ProjectDetail() {
     } as any).eq("id", docId);
     if (error) { toast.error(error.message); return; }
     toast.success(`Document ${status}!`);
+
+    // Auto status change: when admin approves, check if all signable docs are approved → mark completed
+    if (status === "approved" && id && project?.status === "client_signed") {
+      await supabase.from("projects").update({ status: "closed" as any }).eq("id", id);
+      toast.info("Project status updated to Completed");
+      fetchProject();
+    }
+
     fetchDocuments();
   };
 
@@ -440,6 +461,14 @@ export default function ProjectDetail() {
     } as any).eq("id", signingDoc.id);
     if (error) { toast.error(error.message); setSavingSignature(false); return; }
     toast.success("Signature saved!");
+
+    // Auto status change to client_signed when document is signed
+    if (id && project && project.status === "client_signing_pending") {
+      await supabase.from("projects").update({ status: "client_signed" as any }).eq("id", id);
+      toast.info("Project status updated to Client Signed Pending Approval");
+      fetchProject();
+    }
+
     setSavingSignature(false); setSignDialogOpen(false); setSigningDoc(null); setSignerName(""); setHasSigned(false);
     clearSignature(); fetchDocuments();
   };

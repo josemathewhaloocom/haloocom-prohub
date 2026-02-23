@@ -54,16 +54,15 @@ export default function Documents() {
   }, []);
 
   const handleViewDocument = async (doc: DocWithProject) => {
+    // Open window first to preserve user gesture context (Chrome blocks async popups)
+    const newWindow = window.open("", "_blank");
     const { data } = await supabase.storage.from("documents").createSignedUrl(doc.file_url, 60);
-    if (data?.signedUrl) {
-      const a = document.createElement("a");
-      a.href = data.signedUrl;
-      a.target = "_blank";
-      a.rel = "noopener noreferrer";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    } else toast.error("Could not generate download link.");
+    if (data?.signedUrl && newWindow) {
+      newWindow.location.href = data.signedUrl;
+    } else {
+      if (newWindow) newWindow.close();
+      toast.error("Could not generate download link.");
+    }
   };
 
   // Group by project
