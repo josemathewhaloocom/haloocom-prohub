@@ -18,7 +18,6 @@ serve(async (req) => {
     );
 
     if (req.method === "GET") {
-      // Lookup document by token
       const url = new URL(req.url);
       const token = url.searchParams.get("token");
       if (!token) throw new Error("Token is required");
@@ -35,7 +34,6 @@ serve(async (req) => {
         throw new Error("This signing link has expired");
       }
 
-      // Generate a signed URL for the document file
       const { data: signedUrl } = await supabaseAdmin.storage
         .from("documents")
         .createSignedUrl(doc.file_url, 3600);
@@ -58,10 +56,9 @@ serve(async (req) => {
         throw new Error("token, signature_url, and signer_name are required");
       }
 
-      // Verify token and document
       const { data: doc } = await supabaseAdmin
         .from("documents")
-        .select("id, signed_at, signing_token_expires_at")
+        .select("id, signed_at, signing_token_expires_at, project_id")
         .eq("signing_token", token)
         .maybeSingle();
 
@@ -71,7 +68,6 @@ serve(async (req) => {
         throw new Error("Link expired");
       }
 
-      // Get signer IP
       const signer_ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
         req.headers.get("cf-connecting-ip") || "unknown";
 
@@ -86,6 +82,22 @@ serve(async (req) => {
         .eq("id", doc.id);
 
       if (updateError) throw updateError;
+
+      // Auto-update project status to client_signed when client signs via public portal
+      if (doc.project_id) {
+        const { data: project } = await supabaseAdmin
+          .from("projects")
+          .select("status")
+          .eq("id", doc.project_id)
+          .maybeSingle();
+
+        if (project && project.status === "client_signing_pending") {
+          await supabaseAdmin
+            .from("projects")
+            .update({ status: "client_signed" })
+            .eq("id", doc.project_id);
+        }
+      }
 
       return new Response(
         JSON.stringify({ success: true }),

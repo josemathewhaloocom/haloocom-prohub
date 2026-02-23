@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Users, FolderKanban, UserPlus, CheckCircle2, Clock, PauseCircle, TrendingUp } from "lucide-react";
+import { Users, FolderKanban, UserPlus, CheckCircle2, Clock, PauseCircle } from "lucide-react";
 import { Navigate } from "react-router-dom";
 import { toast } from "sonner";
 
@@ -17,7 +17,6 @@ interface EngineerProfile {
   first_name: string;
   last_name: string;
   email: string;
-  active: number;
   completed: number;
   in_progress: number;
   on_hold: number;
@@ -30,8 +29,6 @@ export default function Engineers() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({ email: "", password: "", first_name: "", last_name: "" });
-
-  // Date filter
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
@@ -42,32 +39,28 @@ export default function Engineers() {
     const ids = roles.map((r) => r.user_id);
     const { data: profiles } = await supabase.from("profiles").select("*").in("id", ids);
     const { data: assignments } = await supabase.from("project_assignments").select("engineer_id, project_id");
-    
-    // Get all projects for status info
     const { data: projects } = await supabase.from("projects").select("id, status, start_date, deadline");
     const projectMap = new Map((projects ?? []).map(p => [p.id, p]));
 
     setEngineers(
       (profiles ?? []).map((p) => {
         const engAssignments = (assignments ?? []).filter(a => a.engineer_id === p.id);
-        let active = 0, completed = 0, in_progress = 0, on_hold = 0, total = 0;
+        let completed = 0, in_progress = 0, on_hold = 0, total = 0;
 
         engAssignments.forEach(a => {
           const proj = projectMap.get(a.project_id);
           if (!proj) return;
-          // Date filter
           if (dateFrom && proj.start_date && proj.start_date < dateFrom) return;
           if (dateTo && proj.deadline && proj.deadline > dateTo) return;
 
           total++;
           const s = proj.status as string;
           if (s === "closed") completed++;
-          else if (s === "in_progress") { in_progress++; active++; }
-          else if (s === "on_hold") { on_hold++; }
-          else { active++; }
+          else if (s === "in_progress") in_progress++;
+          else if (s === "on_hold") on_hold++;
         });
 
-        return { id: p.id, first_name: p.first_name, last_name: p.last_name, email: p.email, active, completed, in_progress, on_hold, total };
+        return { id: p.id, first_name: p.first_name, last_name: p.last_name, email: p.email, completed, in_progress, on_hold, total };
       })
     );
   };
@@ -112,7 +105,6 @@ export default function Engineers() {
         </Dialog>
       </div>
 
-      {/* Date filter */}
       <div className="flex items-center gap-3">
         <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-36" placeholder="From" />
         <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-36" placeholder="To" />
@@ -136,7 +128,6 @@ export default function Engineers() {
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
-                <TableHead>Active</TableHead>
                 <TableHead>Completed</TableHead>
                 <TableHead>In Progress</TableHead>
                 <TableHead>On Hold</TableHead>
@@ -145,12 +136,11 @@ export default function Engineers() {
             </TableHeader>
             <TableBody>
               {engineers.length === 0 ? (
-                <TableRow><TableCell colSpan={7} className="py-12 text-center text-muted-foreground">No engineers registered yet.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={6} className="py-12 text-center text-muted-foreground">No engineers registered yet.</TableCell></TableRow>
               ) : engineers.map((eng) => (
                 <TableRow key={eng.id}>
                   <TableCell className="font-medium">{eng.first_name} {eng.last_name}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">{eng.email}</TableCell>
-                  <TableCell><Badge variant="secondary" className="gap-1"><TrendingUp className="h-3 w-3" /> {eng.active}</Badge></TableCell>
                   <TableCell><Badge variant="outline" className="gap-1 bg-success/10 text-success border-success/20"><CheckCircle2 className="h-3 w-3" /> {eng.completed}</Badge></TableCell>
                   <TableCell><Badge variant="outline" className="gap-1 bg-warning/10 text-warning border-warning/20"><Clock className="h-3 w-3" /> {eng.in_progress}</Badge></TableCell>
                   <TableCell><Badge variant="outline" className="gap-1 bg-destructive/10 text-destructive border-destructive/20"><PauseCircle className="h-3 w-3" /> {eng.on_hold}</Badge></TableCell>
