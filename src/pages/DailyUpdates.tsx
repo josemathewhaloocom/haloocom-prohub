@@ -8,9 +8,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
-import { Plus, Clock, AlertTriangle, Calendar } from "lucide-react";
+import { Plus, Clock, AlertTriangle, Calendar, Edit, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -38,6 +39,17 @@ export default function DailyUpdates() {
     update_date: new Date().toISOString().split("T")[0],
   });
 
+  // Edit state
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingUpdate, setEditingUpdate] = useState<UpdateWithProject | null>(null);
+  const [editForm, setEditForm] = useState({
+    summary: "",
+    percentage_complete: 0,
+    hours_worked: 0,
+    blockers: "",
+  });
+  const [savingEdit, setSavingEdit] = useState(false);
+
   const fetchUpdates = async () => {
     const { data } = await supabase
       .from("daily_updates")
@@ -48,12 +60,10 @@ export default function DailyUpdates() {
 
     if (!data?.length) { setUpdates([]); return; }
 
-    // Fetch project names
     const projectIds = [...new Set(data.map((u) => u.project_id))];
     const { data: projectsData } = await supabase.from("projects").select("id, name").in("id", projectIds);
     const projectMap = new Map((projectsData ?? []).map((p) => [p.id, p.name]));
 
-    // Fetch engineer names
     const engineerIds = [...new Set(data.map((u) => u.engineer_id))];
     const { data: profiles } = await supabase.from("profiles").select("id, first_name, last_name").in("id", engineerIds);
     const profileMap = new Map((profiles ?? []).map((p) => [p.id, `${p.first_name} ${p.last_name}`]));
@@ -68,7 +78,6 @@ export default function DailyUpdates() {
   };
 
   const fetchProjects = async () => {
-    // Engineers only see assigned projects; admins see all
     if (role === "admin") {
       const { data } = await supabase.from("projects").select("id, name").neq("status", "closed" as any);
       setProjects(data ?? []);
@@ -107,7 +116,6 @@ export default function DailyUpdates() {
     setSubmitting(false);
     if (error) { toast.error(error.message); return; }
 
-    // Also update project progress
     await supabase.from("projects").update({ progress_percentage: form.percentage_complete }).eq("id", form.project_id);
 
     toast.success("Daily update submitted!");
@@ -123,9 +131,42 @@ export default function DailyUpdates() {
     fetchUpdates();
   };
 
-  const filtered = filterProject === "all" ? updates : updates.filter((u) => u.project_id === filterProject);
+  const handleEditUpdate = (update: UpdateWithProject) => {
+    setEditingUpdate(update);
+    setEditForm({
+      summary: update.summary,
+      percentage_complete: update.percentage_complete,
+      hours_worked: update.hours_worked,
+      blockers: update.blockers || "",
+    });
+    setEditDialogOpen(true);
+  };
 
-  // All unique projects from updates for filter
+  const handleSaveEdit = async () => {
+    if (!editingUpdate) return;
+    setSavingEdit(true);
+    const { error } = await supabase.from("daily_updates").update({
+      summary: editForm.summary,
+      percentage_complete: editForm.percentage_complete,
+      hours_worked: editForm.hours_worked,
+      blockers: editForm.blockers || null,
+    }).eq("id", editingUpdate.id);
+    setSavingEdit(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Update edited!");
+    setEditDialogOpen(false);
+    setEditingUpdate(null);
+    fetchUpdates();
+  };
+
+  const handleDeleteUpdate = async (updateId: string) => {
+    const { error } = await supabase.from("daily_updates").delete().eq("id", updateId);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Update deleted!");
+    fetchUpdates();
+  };
+
+  const filtered = filterProject === "all" ? updates : updates.filter((u) => u.project_id === filterProject);
   const updateProjects = [...new Map(updates.map((u) => [u.project_id, u.project_name])).entries()];
 
   return (
@@ -275,6 +316,26 @@ export default function DailyUpdates() {
                       <Clock className="h-3 w-3" />
                       {update.hours_worked}h
                     </div>
+                    {role === "admin" && (
+                      <div className="flex items-center gap-1 mt-1">
+                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleEditUpdate(update)} title="Edit"><Edit className="h-3 w-3" /></Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" title="Delete"><Trash2 className="h-3 w-3" /></Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete Update</AlertDialogTitle>
+                              <AlertDialogDescription>This will permanently delete this daily update. This action cannot be undone.</AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => handleDeleteUpdate(update.id)}>Delete</AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+                    )}
                   </div>
                 </div>
               </CardContent>
@@ -282,6 +343,32 @@ export default function DailyUpdates() {
           ))}
         </div>
       )}
+
+      {/* Edit Update Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>Edit Daily Update</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Summary</Label>
+              <Textarea value={editForm.summary} onChange={(e) => setEditForm({ ...editForm, summary: e.target.value })} rows={3} />
+            </div>
+            <div className="space-y-2">
+              <Label>Progress: {editForm.percentage_complete}%</Label>
+              <Slider value={[editForm.percentage_complete]} onValueChange={([v]) => setEditForm({ ...editForm, percentage_complete: v })} max={100} step={5} />
+            </div>
+            <div className="space-y-2">
+              <Label>Hours Worked</Label>
+              <Input type="number" min={0} max={24} step={0.5} value={editForm.hours_worked} onChange={(e) => setEditForm({ ...editForm, hours_worked: Number(e.target.value) })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Blockers</Label>
+              <Textarea value={editForm.blockers} onChange={(e) => setEditForm({ ...editForm, blockers: e.target.value })} rows={2} />
+            </div>
+            <Button onClick={handleSaveEdit} disabled={savingEdit} className="w-full">{savingEdit ? "Saving..." : "Save Changes"}</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

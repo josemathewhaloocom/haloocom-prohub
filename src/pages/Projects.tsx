@@ -10,9 +10,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Separator } from "@/components/ui/separator";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -78,13 +79,11 @@ export default function Projects() {
     const { data } = await supabase.from("projects").select("*").order("created_at", { ascending: false });
     setProjects(data ?? []);
 
-    // Fetch product names
     const { data: prods } = await supabase.from("product_catalog" as any).select("id, name");
     const pm: Record<string, string> = {};
     ((prods as any[]) ?? []).forEach((p: any) => { pm[p.id] = p.name; });
     setProductMap(pm);
 
-    // Fetch assignments + profiles for engineer names
     const { data: assignments } = await supabase.from("project_assignments").select("project_id, engineer_id");
     if (assignments?.length) {
       const engIds = [...new Set(assignments.map(a => a.engineer_id))];
@@ -122,6 +121,20 @@ export default function Projects() {
     toast.success("Project created!");
     setDialogOpen(false);
     setForm({ status: "open" as any, priority: "medium" });
+    fetchProjects();
+  };
+
+  const handleDeleteProject = async (projectId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    // Delete related data first
+    await supabase.from("project_assignments").delete().eq("project_id", projectId);
+    await supabase.from("daily_updates").delete().eq("project_id", projectId);
+    await supabase.from("documents").delete().eq("project_id", projectId);
+    await supabase.from("milestones").delete().eq("project_id", projectId);
+    await supabase.from("project_stakeholders").delete().eq("project_id", projectId);
+    const { error } = await supabase.from("projects").delete().eq("id", projectId);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Project deleted!");
     fetchProjects();
   };
 
@@ -235,11 +248,12 @@ export default function Projects() {
                 <TableHead>Progress</TableHead>
                 <TableHead>Start Date</TableHead>
                 <TableHead>Go Live Date</TableHead>
+                {role === "admin" && <TableHead className="w-12" />}
               </TableRow>
             </TableHeader>
             <TableBody>
               {filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={7} className="py-12 text-center text-muted-foreground">No projects found.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={role === "admin" ? 8 : 7} className="py-12 text-center text-muted-foreground">No projects found.</TableCell></TableRow>
               ) : filtered.map((p) => {
                 const statusLabel = PROJECT_STATUSES.find(s => s.value === p.status)?.label || p.status.replace(/_/g, " ");
                 return (
@@ -261,6 +275,27 @@ export default function Projects() {
                     </TableCell>
                     <TableCell className="text-sm">{p.start_date || "—"}</TableCell>
                     <TableCell className="text-sm">{p.deadline || "—"}</TableCell>
+                    {role === "admin" && (
+                      <TableCell>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={(e) => e.stopPropagation()} title="Delete">
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete Project</AlertDialogTitle>
+                              <AlertDialogDescription>This will permanently delete "{p.name}" and all its related data (assignments, updates, documents). This action cannot be undone.</AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={(e) => handleDeleteProject(p.id, e)}>Delete</AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </TableCell>
+                    )}
                   </TableRow>
                 );
               })}

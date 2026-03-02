@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { FileText, CheckCircle2, Clock, XCircle, ChevronDown, ChevronRight, Search, Eye } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { FileText, CheckCircle2, Clock, XCircle, ChevronDown, ChevronRight, Search, Eye, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 const APPROVAL_STYLES: Record<string, { class: string; icon: any }> = {
@@ -63,6 +64,25 @@ export default function Documents() {
       if (newWindow) newWindow.close();
       toast.error("Could not generate download link.");
     }
+  };
+
+  const handleDeleteDocument = async (doc: DocWithProject) => {
+    await supabase.storage.from("documents").remove([doc.file_url]);
+    const { error } = await supabase.from("documents").delete().eq("id", doc.id);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Document deleted.");
+    // Refetch
+    const { data } = await supabase
+      .from("documents")
+      .select("*, projects(name)")
+      .order("created_at", { ascending: false });
+    setDocuments(
+      (data ?? []).map((d: any) => ({
+        ...d,
+        project_name: d.projects?.name || "Unknown",
+        project_id: d.project_id,
+      }))
+    );
   };
 
   // Group by project
@@ -166,9 +186,28 @@ export default function Documents() {
                             </TableCell>
                             <TableCell className="text-sm text-muted-foreground">{new Date(doc.created_at).toLocaleDateString()}</TableCell>
                             <TableCell className="text-right">
-                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleViewDocument(doc)} title="View">
-                                <Eye className="h-3.5 w-3.5" />
-                              </Button>
+                              <div className="flex items-center justify-end gap-1">
+                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleViewDocument(doc)} title="View">
+                                  <Eye className="h-3.5 w-3.5" />
+                                </Button>
+                                {role === "admin" && (
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" title="Delete"><Trash2 className="h-3.5 w-3.5" /></Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>Delete Document</AlertDialogTitle>
+                                        <AlertDialogDescription>This will permanently delete "{doc.file_name}". This action cannot be undone.</AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => handleDeleteDocument(doc)}>Delete</AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                )}
+                              </div>
                             </TableCell>
                           </TableRow>
                         ))}
