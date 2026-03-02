@@ -7,8 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Users, FolderKanban, UserPlus, CheckCircle2, Clock, PauseCircle } from "lucide-react";
+import { Users, FolderKanban, UserPlus, CheckCircle2, Clock, PauseCircle, Edit, Trash2 } from "lucide-react";
 import { Navigate } from "react-router-dom";
 import { toast } from "sonner";
 
@@ -31,6 +32,11 @@ export default function Engineers() {
   const [form, setForm] = useState({ email: "", password: "", first_name: "", last_name: "" });
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+
+  // Edit state
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editForm, setEditForm] = useState({ id: "", first_name: "", last_name: "", email: "" });
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const fetchEngineers = async () => {
     const { data: roles } = await supabase.from("user_roles").select("user_id").eq("role", "engineer");
@@ -76,6 +82,33 @@ export default function Engineers() {
     toast.success(`Engineer ${form.first_name} created successfully!`);
     setDialogOpen(false);
     setForm({ email: "", password: "", first_name: "", last_name: "" });
+    fetchEngineers();
+  };
+
+  const handleEditEngineer = (eng: EngineerProfile) => {
+    setEditForm({ id: eng.id, first_name: eng.first_name, last_name: eng.last_name, email: eng.email });
+    setEditDialogOpen(true);
+  };
+
+  const handleSaveEdit = async () => {
+    setSavingEdit(true);
+    const { error } = await supabase.from("profiles").update({
+      first_name: editForm.first_name, last_name: editForm.last_name,
+    }).eq("id", editForm.id);
+    setSavingEdit(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Engineer profile updated!");
+    setEditDialogOpen(false);
+    fetchEngineers();
+  };
+
+  const handleDeleteEngineer = async (engId: string) => {
+    // Remove assignments, daily updates, then role
+    await supabase.from("project_assignments").delete().eq("engineer_id", engId);
+    await supabase.from("daily_updates").delete().eq("engineer_id", engId);
+    const { error } = await supabase.from("user_roles").delete().eq("user_id", engId);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Engineer removed!");
     fetchEngineers();
   };
 
@@ -132,11 +165,12 @@ export default function Engineers() {
                 <TableHead>In Progress</TableHead>
                 <TableHead>On Hold</TableHead>
                 <TableHead>Total</TableHead>
+                <TableHead className="w-20">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {engineers.length === 0 ? (
-                <TableRow><TableCell colSpan={6} className="py-12 text-center text-muted-foreground">No engineers registered yet.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="py-12 text-center text-muted-foreground">No engineers registered yet.</TableCell></TableRow>
               ) : engineers.map((eng) => (
                 <TableRow key={eng.id}>
                   <TableCell className="font-medium">{eng.first_name} {eng.last_name}</TableCell>
@@ -145,12 +179,47 @@ export default function Engineers() {
                   <TableCell><Badge variant="outline" className="gap-1 bg-warning/10 text-warning border-warning/20"><Clock className="h-3 w-3" /> {eng.in_progress}</Badge></TableCell>
                   <TableCell><Badge variant="outline" className="gap-1 bg-destructive/10 text-destructive border-destructive/20"><PauseCircle className="h-3 w-3" /> {eng.on_hold}</Badge></TableCell>
                   <TableCell><Badge variant="secondary" className="gap-1"><FolderKanban className="h-3 w-3" /> {eng.total}</Badge></TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEditEngineer(eng)} title="Edit"><Edit className="h-3.5 w-3.5" /></Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" title="Delete"><Trash2 className="h-3.5 w-3.5" /></Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Remove Engineer</AlertDialogTitle>
+                            <AlertDialogDescription>This will remove {eng.first_name} {eng.last_name}'s engineer role, their project assignments, and daily updates. This cannot be undone.</AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => handleDeleteEngineer(eng.id)}>Delete</AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
+
+      {/* Edit Engineer Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Edit Engineer</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2"><Label>First Name</Label><Input value={editForm.first_name} onChange={(e) => setEditForm({ ...editForm, first_name: e.target.value })} /></div>
+              <div className="space-y-2"><Label>Last Name</Label><Input value={editForm.last_name} onChange={(e) => setEditForm({ ...editForm, last_name: e.target.value })} /></div>
+            </div>
+            <div className="space-y-2"><Label>Email</Label><Input value={editForm.email} disabled className="opacity-60" /></div>
+            <Button onClick={handleSaveEdit} disabled={savingEdit} className="w-full">{savingEdit ? "Saving..." : "Save Changes"}</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
