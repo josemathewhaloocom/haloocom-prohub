@@ -37,7 +37,7 @@ serve(async (req) => {
       throw new Error("Email, password, and first name are required");
     }
 
-    // Create user
+    // Try to create user
     const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
@@ -45,17 +45,32 @@ serve(async (req) => {
       user_metadata: { first_name, last_name: last_name || "" },
     });
 
-    if (createError) throw createError;
+    let userId: string;
 
-    // Assign engineer role
+    if (createError) {
+      // If user already exists, look them up
+      if (createError.message?.includes("already been registered")) {
+        const { data: { users }, error: listError } = await supabaseAdmin.auth.admin.listUsers();
+        if (listError) throw listError;
+        const existing = users.find((u: any) => u.email === email);
+        if (!existing) throw new Error("User exists but could not be found");
+        userId = existing.id;
+      } else {
+        throw createError;
+      }
+    } else {
+      userId = newUser.user.id;
+    }
+
+    // Assign engineer role (upsert to avoid duplicate key)
     const { error: roleError } = await supabaseAdmin
       .from("user_roles")
-      .insert({ user_id: newUser.user.id, role: "engineer" });
+      .upsert({ user_id: userId, role: "engineer" }, { onConflict: "user_id,role" });
 
     if (roleError) throw roleError;
 
     return new Response(
-      JSON.stringify({ success: true, user_id: newUser.user.id }),
+      JSON.stringify({ success: true, user_id: userId }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
     );
   } catch (error) {
