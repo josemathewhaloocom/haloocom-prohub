@@ -376,6 +376,29 @@ export default function ProjectDetail() {
     } else {
       toast.success("Document uploaded!");
     }
+
+    // Send email notification to client when document is uploaded
+    if (project?.client_email) {
+      const docTypeLabel = DOCUMENT_TYPES.find(d => d.value === uploadDocType)?.label || uploadDocType || "Document";
+      const signingLink = needsSignature && signingToken ? `${window.location.origin}/sign/${signingToken}` : null;
+      const { error: emailError } = await supabase.functions.invoke("send-email", {
+        body: {
+          to: project.client_email,
+          subject: `New document uploaded for project: ${project.name}`,
+          html: `<h2>Document Uploaded</h2>
+            <p>Dear ${project.client_name},</p>
+            <p>A new <strong>${docTypeLabel}</strong> document (<strong>${uploadFile.name}</strong>) has been uploaded for your project <strong>${project.name}</strong>.</p>
+            ${signingLink ? `<p><a href="${signingLink}" style="background:#2563eb;color:#fff;padding:10px 20px;text-decoration:none;border-radius:6px;display:inline-block;">Sign Document</a></p>` : ""}
+            <p>Please log in or use the signing link above to review.</p>`,
+        },
+      });
+      if (emailError) {
+        console.error("Client email failed:", emailError);
+        toast.warning("Document uploaded but client email notification failed.");
+      } else {
+        toast.info("Email notification sent to client.");
+      }
+    }
     setUploadFile(null); setUploadDocType(""); setUploading(false); setUploadProgress(0);
     fetchDocuments();
   };
@@ -468,6 +491,28 @@ export default function ProjectDetail() {
       await supabase.from("projects").update({ status: "client_signed" as any }).eq("id", id);
       toast.info("Project status updated to Client Signed Pending Approval");
       fetchProject();
+    }
+
+    // Send email notification to admins when client signs
+    try {
+      const { data: adminRoles } = await supabase.from("user_roles").select("user_id").eq("role", "admin");
+      if (adminRoles?.length) {
+        const { data: adminProfiles } = await supabase.from("profiles").select("email, first_name").in("id", adminRoles.map(r => r.user_id));
+        for (const admin of adminProfiles ?? []) {
+          await supabase.functions.invoke("send-email", {
+            body: {
+              to: admin.email,
+              subject: `Client signed document on project: ${project?.name}`,
+              html: `<h2>Client Signature Received</h2>
+                <p>Hi ${admin.first_name},</p>
+                <p>Client <strong>${signerName}</strong> has signed the document <strong>${signingDoc.file_name}</strong> on project <strong>${project?.name}</strong>.</p>
+                <p>Please review and approve the document.</p>`,
+            },
+          });
+        }
+      }
+    } catch (emailErr) {
+      console.error("Admin notification email failed:", emailErr);
     }
 
     setSavingSignature(false); setSignDialogOpen(false); setSigningDoc(null); setSignerName(""); setHasSigned(false);
