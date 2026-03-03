@@ -126,8 +126,8 @@ serve(async (req) => {
       .select("role")
       .eq("user_id", caller.id)
       .in("role", ["admin", "engineer"])
-      .maybeSingle();
-    if (!roleCheck) throw new Error("Only authenticated users with roles can send emails");
+      .limit(1);
+    if (!roleCheck || roleCheck.length === 0) throw new Error("Only authenticated users with roles can send emails");
 
     const { to, subject, html } = await req.json();
     if (!to || !subject || !html) throw new Error("to, subject, and html are required");
