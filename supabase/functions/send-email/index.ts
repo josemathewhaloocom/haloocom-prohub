@@ -14,16 +14,17 @@ async function sendViaSMTP(smtp: any, to: string, subject: string, html: string)
   const host = smtp.host;
   const port = smtp.port || 587;
 
-  // Use SMTP relay via fetch-based approach (Nodemailer-compatible SMTP services expose HTTP APIs)
-  // For services like Gmail, Outlook, SendGrid, Mailgun etc. that support SMTP,
-  // we'll use a basic SMTP EHLO/AUTH/MAIL sequence over Deno.connect
-
-  const conn = smtp.use_tls
-    ? await Deno.connectTls({ hostname: host, port })
-    : await Deno.connect({ hostname: host, port });
-
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
+
+  let conn: Deno.Conn;
+
+  // Port 465 = direct SSL/TLS, Port 587 = plain then STARTTLS
+  if (port === 465 || smtp.use_ssl === true) {
+    conn = await Deno.connectTls({ hostname: host, port });
+  } else {
+    conn = await Deno.connect({ hostname: host, port });
+  }
 
   async function readResponse(): Promise<string> {
     const buf = new Uint8Array(4096);
@@ -43,13 +44,14 @@ async function sendViaSMTP(smtp: any, to: string, subject: string, html: string)
   // EHLO
   await sendCommand(`EHLO localhost`);
 
-  // STARTTLS if not already TLS and use_tls is false but STARTTLS is available
-  if (!smtp.use_tls && smtp.use_ssl !== true) {
-    // Try STARTTLS
+  // STARTTLS for port 587
+  if (port !== 465 && smtp.use_ssl !== true) {
     const starttlsResp = await sendCommand("STARTTLS");
     if (starttlsResp.startsWith("220")) {
-      // Upgrade connection - Deno doesn't easily support STARTTLS upgrade
-      // So we skip STARTTLS in plain mode
+      // Upgrade to TLS
+      conn = await Deno.startTls(conn as Deno.TcpConn, { hostname: host });
+      // Re-EHLO after TLS upgrade
+      await sendCommand(`EHLO localhost`);
     }
   }
 
