@@ -284,11 +284,23 @@ export default function ProjectDetail() {
 
   // ---- Engineer assign/unassign ----
   const handleAssign = async () => {
-    if (!selectedEngineer || !id) return;
+    if (!selectedEngineer || !id || engineerLoading) return;
     setEngineerLoading(true);
+
+    // Check if already assigned to prevent duplicate key error
+    const { data: existing } = await supabase.from("project_assignments").select("id").eq("project_id", id).eq("engineer_id", selectedEngineer).maybeSingle();
+    if (existing) {
+      toast.info("Engineer is already assigned to this project.");
+      setEngineerLoading(false);
+      setAssignDialogOpen(false);
+      return;
+    }
+
     const { error } = await supabase.from("project_assignments").insert({ project_id: id, engineer_id: selectedEngineer });
-    setEngineerLoading(false);
-    if (error) { toast.error(error.message); return; }
+    if (error) { toast.error(error.message); setEngineerLoading(false); return; }
+
+    // Close dialog immediately to prevent double-click
+    setAssignDialogOpen(false);
 
     // Send email notification
     const eng = available.find(e => e.id === selectedEngineer);
@@ -308,8 +320,8 @@ export default function ProjectDetail() {
 
     toast.success("Engineer assigned!");
     setSelectedEngineer("");
-    setAssignDialogOpen(false);
-    fetchAssignments();
+    await fetchAssignments();
+    setEngineerLoading(false);
   };
 
   const handleUnassign = async (assignmentId: string) => {
