@@ -146,7 +146,7 @@ interface Product {
 export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { role, user } = useAuth();
+  const { isProjectManager, isEngineer, user } = useAuth();
   const [project, setProject] = useState<Project | null>(null);
   const [productName, setProductName] = useState<string | null>(null);
   const [assigned, setAssigned] = useState<AssignedEngineer[]>([]);
@@ -507,7 +507,7 @@ export default function ProjectDetail() {
 
     // Send email notification to admins when client signs
     try {
-      const { data: adminRoles } = await supabase.from("user_roles").select("user_id").eq("role", "admin");
+      const { data: adminRoles } = await supabase.from("user_roles").select("user_id").eq("role", "project_manager" as any);
       if (adminRoles?.length) {
         const { data: adminProfiles } = await supabase.from("profiles").select("email, first_name").in("id", adminRoles.map(r => r.user_id));
         for (const admin of adminProfiles ?? []) {
@@ -609,7 +609,7 @@ export default function ProjectDetail() {
           <h1 className="text-2xl font-bold tracking-tight">{project.name}</h1>
           <p className="text-muted-foreground">{project.client_name}{project.client_company ? ` — ${project.client_company}` : ""}</p>
         </div>
-        {role === "admin" && (
+        {isProjectManager && (
           <Button variant="outline" size="sm" onClick={openEditDialog}><Edit className="mr-2 h-4 w-4" /> Edit Project</Button>
         )}
         <Badge variant="outline" className={STATUS_STYLES[project.status] || ""}>{statusLabel}</Badge>
@@ -622,7 +622,7 @@ export default function ProjectDetail() {
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="updates">Daily Updates</TabsTrigger>
           <TabsTrigger value="documents">Documents</TabsTrigger>
-          {role === "admin" && <TabsTrigger value="status">Status</TabsTrigger>}
+          {isProjectManager && <TabsTrigger value="status">Status</TabsTrigger>}
           <TabsTrigger value="engineers">Engineers</TabsTrigger>
         </TabsList>
 
@@ -728,7 +728,7 @@ export default function ProjectDetail() {
                   </div>
                   <div className="text-right shrink-0">
                     <p className="text-xs text-muted-foreground">{new Date(u.update_date).toLocaleDateString()}</p>
-                    {role === "admin" && <p className="text-xs text-muted-foreground">{u.engineer_name}</p>}
+                    {isProjectManager && <p className="text-xs text-muted-foreground">{u.engineer_name}</p>}
                   </div>
                 </div>
                 <div className="flex items-center gap-4 text-xs text-muted-foreground">
@@ -815,16 +815,16 @@ export default function ProjectDetail() {
                             {doc.signing_token && !doc.signed_at && (
                               <Button variant="ghost" size="icon" className="h-7 w-7 text-info" onClick={() => copySigningLink(doc)} title="Copy Signing Link"><Copy className="h-3.5 w-3.5" /></Button>
                             )}
-                            {(doc.document_type === "sign_off" || role === "admin") && !doc.signed_at && (
+                            {(doc.document_type === "sign_off" || isProjectManager) && !doc.signed_at && (
                               <Button variant="ghost" size="icon" className="h-7 w-7 text-primary" onClick={() => { setSigningDoc(doc); setSignerName(""); setSignDialogOpen(true); }} title="Get Signed"><PenTool className="h-3.5 w-3.5" /></Button>
                             )}
-                            {role === "admin" && (
+                            {isProjectManager && (
                               <>
                                 <Button variant="ghost" size="icon" className="h-7 w-7 text-success" onClick={() => handleApproveReject(doc.id, "approved")} title="Approve"><CheckCircle className="h-3.5 w-3.5" /></Button>
                                 <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleApproveReject(doc.id, "rejected")} title="Reject"><XCircle className="h-3.5 w-3.5" /></Button>
                               </>
                             )}
-                            {(role === "admin" || (isOwn && doc.approval_status === "pending")) && (
+                            {(isProjectManager || (isOwn && doc.approval_status === "pending")) && (
                               <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                   <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" title="Delete"><Trash2 className="h-3.5 w-3.5" /></Button>
@@ -853,7 +853,7 @@ export default function ProjectDetail() {
         </TabsContent>
 
         {/* ===== STATUS TAB (admin only) ===== */}
-        {role === "admin" && (
+        {isProjectManager && (
           <TabsContent value="status" className="space-y-4 mt-4">
             <Card>
               <CardHeader><CardTitle className="text-base">Project Status Pipeline</CardTitle></CardHeader>
@@ -887,7 +887,7 @@ export default function ProjectDetail() {
           <Card>
             <CardHeader className="flex-row items-center justify-between space-y-0">
               <CardTitle className="text-base">Assigned Engineers</CardTitle>
-              {role === "admin" && assigned.length === 0 && (
+              {isProjectManager && assigned.length === 0 && (
                 <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
                   <DialogTrigger asChild><Button size="sm"><UserPlus className="mr-2 h-4 w-4" /> Assign Engineer</Button></DialogTrigger>
                   <DialogContent>
@@ -908,22 +908,22 @@ export default function ProjectDetail() {
                   </DialogContent>
                 </Dialog>
               )}
-              {role === "admin" && assigned.length > 0 && (
+              {isProjectManager && assigned.length > 0 && (
                 <p className="text-xs text-muted-foreground">One engineer per project</p>
               )}
             </CardHeader>
             <CardContent className="p-0">
               <Table>
-                <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Email</TableHead><TableHead>Assigned</TableHead>{role === "admin" && <TableHead className="w-12" />}</TableRow></TableHeader>
+                <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Email</TableHead><TableHead>Assigned</TableHead>{isProjectManager && <TableHead className="w-12" />}</TableRow></TableHeader>
                 <TableBody>
                   {assigned.length === 0 ? (
-                    <TableRow><TableCell colSpan={role === "admin" ? 4 : 3} className="py-8 text-center text-muted-foreground">No engineers assigned yet.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={isProjectManager ? 4 : 3} className="py-8 text-center text-muted-foreground">No engineers assigned yet.</TableCell></TableRow>
                   ) : assigned.map((eng) => (
                     <TableRow key={eng.assignment_id}>
                       <TableCell className="font-medium">{eng.first_name} {eng.last_name}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">{eng.email}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">{new Date(eng.assigned_at).toLocaleDateString()}</TableCell>
-                      {role === "admin" && <TableCell><Button variant="ghost" size="icon" onClick={() => handleUnassign(eng.assignment_id)}><Trash2 className="h-4 w-4 text-destructive" /></Button></TableCell>}
+                      {isProjectManager && <TableCell><Button variant="ghost" size="icon" onClick={() => handleUnassign(eng.assignment_id)}><Trash2 className="h-4 w-4 text-destructive" /></Button></TableCell>}
                     </TableRow>
                   ))}
                 </TableBody>

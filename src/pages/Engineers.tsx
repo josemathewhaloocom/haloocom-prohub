@@ -25,7 +25,7 @@ interface EngineerProfile {
 }
 
 export default function Engineers() {
-  const { role } = useAuth();
+  const { isProjectManager } = useAuth();
   const [engineers, setEngineers] = useState<EngineerProfile[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -33,7 +33,6 @@ export default function Engineers() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
-  // Edit state
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editForm, setEditForm] = useState({ id: "", first_name: "", last_name: "", email: "" });
   const [savingEdit, setSavingEdit] = useState(false);
@@ -103,16 +102,16 @@ export default function Engineers() {
   };
 
   const handleDeleteEngineer = async (engId: string) => {
-    // Remove assignments, daily updates, then role
+    // Only remove the engineer role, keep other roles intact
     await supabase.from("project_assignments").delete().eq("engineer_id", engId);
     await supabase.from("daily_updates").delete().eq("engineer_id", engId);
-    const { error } = await supabase.from("user_roles").delete().eq("user_id", engId);
+    const { error } = await supabase.from("user_roles").delete().eq("user_id", engId).eq("role", "engineer" as any);
     if (error) { toast.error(error.message); return; }
-    toast.success("Engineer removed!");
+    toast.success("Engineer role removed!");
     fetchEngineers();
   };
 
-  if (role !== "admin") return <Navigate to="/" replace />;
+  if (!isProjectManager) return <Navigate to="/" replace />;
 
   return (
     <div className="space-y-6">
@@ -206,7 +205,6 @@ export default function Engineers() {
         </CardContent>
       </Card>
 
-      {/* Edit Engineer Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>Edit Engineer</DialogTitle></DialogHeader>

@@ -351,6 +351,8 @@ export type Database = {
       }
       projects: {
         Row: {
+          amc_end_date: string | null
+          amc_start_date: string | null
           budget: number | null
           client_company: string | null
           client_email: string | null
@@ -359,6 +361,7 @@ export type Database = {
           created_by: string | null
           deadline: string | null
           description: string | null
+          gw_sl_no: string | null
           id: string
           location: string | null
           name: string
@@ -368,12 +371,19 @@ export type Database = {
           product_id: string | null
           product_version: string | null
           progress_percentage: number
+          server_serial_number: string | null
+          sl_no_remarks: string | null
+          sla_end_date: string | null
+          sla_period: string | null
+          sla_start_date: string | null
           start_date: string | null
           status: Database["public"]["Enums"]["project_status"]
           trunk: string | null
           updated_at: string
         }
         Insert: {
+          amc_end_date?: string | null
+          amc_start_date?: string | null
           budget?: number | null
           client_company?: string | null
           client_email?: string | null
@@ -382,6 +392,7 @@ export type Database = {
           created_by?: string | null
           deadline?: string | null
           description?: string | null
+          gw_sl_no?: string | null
           id?: string
           location?: string | null
           name: string
@@ -391,12 +402,19 @@ export type Database = {
           product_id?: string | null
           product_version?: string | null
           progress_percentage?: number
+          server_serial_number?: string | null
+          sl_no_remarks?: string | null
+          sla_end_date?: string | null
+          sla_period?: string | null
+          sla_start_date?: string | null
           start_date?: string | null
           status?: Database["public"]["Enums"]["project_status"]
           trunk?: string | null
           updated_at?: string
         }
         Update: {
+          amc_end_date?: string | null
+          amc_start_date?: string | null
           budget?: number | null
           client_company?: string | null
           client_email?: string | null
@@ -405,6 +423,7 @@ export type Database = {
           created_by?: string | null
           deadline?: string | null
           description?: string | null
+          gw_sl_no?: string | null
           id?: string
           location?: string | null
           name?: string
@@ -414,6 +433,11 @@ export type Database = {
           product_id?: string | null
           product_version?: string | null
           progress_percentage?: number
+          server_serial_number?: string | null
+          sl_no_remarks?: string | null
+          sla_end_date?: string | null
+          sla_period?: string | null
+          sla_start_date?: string | null
           start_date?: string | null
           status?: Database["public"]["Enums"]["project_status"]
           trunk?: string | null
@@ -501,6 +525,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      has_any_role: {
+        Args: { _roles: string[]; _user_id: string }
+        Returns: boolean
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -513,13 +541,25 @@ export type Database = {
         Args: { _project_id: string }
         Returns: boolean
       }
+      is_super_admin: { Args: never; Returns: boolean }
     }
     Enums: {
-      app_role: "admin" | "engineer"
+      app_role:
+        | "project_manager"
+        | "admin_manager"
+        | "sales"
+        | "sales_manager"
+        | "accounts_manager"
+        | "engineer"
+        | "ceo"
       approval_status: "pending" | "approved" | "rejected"
       milestone_status: "pending" | "in_progress" | "completed"
       project_priority: "low" | "medium" | "high" | "critical"
       project_status:
+        | "draft"
+        | "sales_approved"
+        | "accounts_approved"
+        | "admin_reviewed"
         | "open"
         | "qc_completed"
         | "kick_off_scheduled"
@@ -658,11 +698,23 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "engineer"],
+      app_role: [
+        "project_manager",
+        "admin_manager",
+        "sales",
+        "sales_manager",
+        "accounts_manager",
+        "engineer",
+        "ceo",
+      ],
       approval_status: ["pending", "approved", "rejected"],
       milestone_status: ["pending", "in_progress", "completed"],
       project_priority: ["low", "medium", "high", "critical"],
       project_status: [
+        "draft",
+        "sales_approved",
+        "accounts_approved",
+        "admin_reviewed",
         "open",
         "qc_completed",
         "kick_off_scheduled",

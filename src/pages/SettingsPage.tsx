@@ -27,17 +27,15 @@ interface CustomField {
 }
 
 export default function SettingsPage() {
-  const { user, role } = useAuth();
+  const { user, isProjectManager } = useAuth();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [saving, setSaving] = useState(false);
 
-  // Product catalog state
   const [products, setProducts] = useState<Product[]>([]);
   const [newProductName, setNewProductName] = useState("");
   const [addingProduct, setAddingProduct] = useState(false);
 
-  // SMTP settings state
   const [smtp, setSmtp] = useState<SmtpSettings>({
     host: "", port: 587, username: "", password: "",
     from_email: "", from_name: "", use_ssl: false, use_tls: true,
@@ -45,14 +43,12 @@ export default function SettingsPage() {
   const [smtpId, setSmtpId] = useState<string | null>(null);
   const [savingSmtp, setSavingSmtp] = useState(false);
 
-  // Dynamic fields
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
   const [newFieldName, setNewFieldName] = useState("");
   const [newFieldType, setNewFieldType] = useState("text");
   const [newFieldRequired, setNewFieldRequired] = useState(false);
   const [addingField, setAddingField] = useState(false);
 
-  // --- Profile ---
   const handleSave = async () => {
     if (!user) return;
     setSaving(true);
@@ -62,7 +58,6 @@ export default function SettingsPage() {
     setSaving(false);
   };
 
-  // --- Products ---
   const fetchProducts = async () => {
     const { data } = await supabase.from("product_catalog" as any).select("*").order("name");
     setProducts((data as unknown as Product[]) ?? []);
@@ -87,7 +82,6 @@ export default function SettingsPage() {
     if (error) toast.error(error.message); else { toast.success("Product removed."); fetchProducts(); }
   };
 
-  // --- SMTP ---
   const fetchSmtpSettings = async () => {
     const { data } = await (supabase as any).from("smtp_settings").select("*").limit(1).maybeSingle();
     if (data) {
@@ -111,7 +105,6 @@ export default function SettingsPage() {
     setSavingSmtp(false);
   };
 
-  // --- Custom Fields ---
   const fetchCustomFields = async () => {
     const { data } = await supabase.from("project_field_config" as any).select("*").order("sort_order");
     setCustomFields((data as any) ?? []);
@@ -137,8 +130,8 @@ export default function SettingsPage() {
   };
 
   useEffect(() => {
-    if (role === "admin") { fetchProducts(); fetchSmtpSettings(); fetchCustomFields(); }
-  }, [role]);
+    if (isProjectManager) { fetchProducts(); fetchSmtpSettings(); fetchCustomFields(); }
+  }, [isProjectManager]);
 
   return (
     <div className="space-y-6">
@@ -147,7 +140,6 @@ export default function SettingsPage() {
         <p className="text-muted-foreground">Manage your account settings.</p>
       </div>
 
-      {/* Profile Card */}
       <Card className="max-w-lg">
         <CardHeader><CardTitle className="text-base">Profile</CardTitle><CardDescription>Update your personal information.</CardDescription></CardHeader>
         <CardContent className="space-y-4">
@@ -160,8 +152,7 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Product Catalog — admin only */}
-      {role === "admin" && (
+      {isProjectManager && (
         <Card className="max-w-lg">
           <CardHeader>
             <div className="flex items-center gap-2"><PackageOpen className="h-4 w-4 text-muted-foreground" /><CardTitle className="text-base">Product Catalog</CardTitle></div>
@@ -192,8 +183,7 @@ export default function SettingsPage() {
         </Card>
       )}
 
-      {/* SMTP / Email Settings — admin only */}
-      {role === "admin" && (
+      {isProjectManager && (
         <Card className="max-w-lg">
           <CardHeader>
             <div className="flex items-center gap-2"><Mail className="h-4 w-4 text-muted-foreground" /><CardTitle className="text-base">Email / SMTP Settings</CardTitle></div>
@@ -227,8 +217,7 @@ export default function SettingsPage() {
         </Card>
       )}
 
-      {/* Dynamic Project Fields — admin only */}
-      {role === "admin" && (
+      {isProjectManager && (
         <Card className="max-w-lg">
           <CardHeader>
             <div className="flex items-center gap-2"><Settings2 className="h-4 w-4 text-muted-foreground" /><CardTitle className="text-base">Project Fields Configuration</CardTitle></div>

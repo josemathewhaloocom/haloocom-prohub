@@ -14,6 +14,8 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis
 import { useNavigate } from "react-router-dom";
 
 const STATUS_COLORS: Record<string, string> = {
+  draft: "hsl(220, 60%, 60%)", sales_approved: "hsl(210, 70%, 55%)",
+  accounts_approved: "hsl(200, 70%, 55%)", admin_reviewed: "hsl(190, 60%, 50%)",
   open: "hsl(200, 80%, 50%)", qc_completed: "hsl(200, 70%, 55%)",
   kick_off_scheduled: "hsl(180, 60%, 45%)", site_ready: "hsl(160, 60%, 45%)",
   on_hold: "hsl(0, 72%, 51%)", scheduled: "hsl(38, 92%, 50%)",
@@ -23,6 +25,8 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 const STATUS_LABELS: Record<string, string> = {
+  draft: "Draft", sales_approved: "Sales Approved", accounts_approved: "Accounts Approved",
+  admin_reviewed: "Admin Reviewed",
   open: "Open", qc_completed: "QC Completed", kick_off_scheduled: "Kick-Off Scheduled",
   site_ready: "Site Ready", on_hold: "On Hold", scheduled: "Scheduled",
   in_progress: "In Progress", client_signing_pending: "Client Signing Pending",
@@ -36,13 +40,14 @@ const PRIORITY_COLORS: Record<string, string> = {
 };
 
 const LIFECYCLE_STAGES = [
+  "draft", "sales_approved", "accounts_approved", "admin_reviewed",
   "open", "qc_completed", "kick_off_scheduled", "site_ready",
   "scheduled", "in_progress", "client_signing_pending",
   "client_signed", "closed"
 ];
 
 export default function Dashboard() {
-  const { role } = useAuth();
+  const { isProjectManager } = useAuth();
   const navigate = useNavigate();
   const [stats, setStats] = useState({ total: 0, in_progress: 0, closed: 0, overdue: 0, on_hold: 0, qc_pending: 0 });
   const [recentProjects, setRecentProjects] = useState<any[]>([]);
@@ -55,13 +60,13 @@ export default function Dashboard() {
     const fetchData = async () => {
       const { data: projects } = await supabase.from("projects").select("*");
       setAllProjects(projects ?? []);
-      if (role === "admin") {
+      if (isProjectManager) {
         const { count } = await supabase.from("user_roles").select("*", { count: "exact", head: true }).eq("role", "engineer");
         setEngineerCount(count ?? 0);
       }
     };
     fetchData();
-  }, [role]);
+  }, [isProjectManager]);
 
   useEffect(() => {
     let filtered = allProjects;
@@ -120,7 +125,7 @@ export default function Dashboard() {
     { label: "On Hold", value: stats.on_hold, icon: PauseCircle, color: "text-destructive" },
     { label: "Overdue", value: stats.overdue, icon: AlertTriangle, color: "text-destructive" },
   ];
-  if (role === "admin") kpiCards.push({ label: "Engineers", value: engineerCount, icon: Users, color: "text-info" });
+  if (isProjectManager) kpiCards.push({ label: "Engineers", value: engineerCount, icon: Users, color: "text-info" });
 
   return (
     <div className="space-y-6">
