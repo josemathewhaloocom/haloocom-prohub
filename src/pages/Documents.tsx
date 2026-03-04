@@ -32,7 +32,7 @@ interface DocWithProject {
 }
 
 export default function Documents() {
-  const { role } = useAuth();
+  const { isProjectManager } = useAuth();
   const [documents, setDocuments] = useState<DocWithProject[]>([]);
   const [search, setSearch] = useState("");
   const [openProjects, setOpenProjects] = useState<Set<string>>(new Set());
@@ -55,7 +55,6 @@ export default function Documents() {
   }, []);
 
   const handleViewDocument = async (doc: DocWithProject) => {
-    // Open window first to preserve user gesture context (Chrome blocks async popups)
     const newWindow = window.open("", "_blank");
     const { data } = await supabase.storage.from("documents").createSignedUrl(doc.file_url, 60);
     if (data?.signedUrl && newWindow) {
@@ -71,7 +70,6 @@ export default function Documents() {
     const { error } = await supabase.from("documents").delete().eq("id", doc.id);
     if (error) { toast.error(error.message); return; }
     toast.success("Document deleted.");
-    // Refetch
     const { data } = await supabase
       .from("documents")
       .select("*, projects(name)")
@@ -85,7 +83,6 @@ export default function Documents() {
     );
   };
 
-  // Group by project
   const filteredDocs = documents.filter(d => d.project_name.toLowerCase().includes(search.toLowerCase()) || d.file_name.toLowerCase().includes(search.toLowerCase()));
   const grouped = new Map<string, DocWithProject[]>();
   filteredDocs.forEach(d => {
@@ -128,13 +125,11 @@ export default function Documents() {
         })}
       </div>
 
-      {/* Search */}
       <div className="relative max-w-sm">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input placeholder="Search by project or file name..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
       </div>
 
-      {/* Grouped by project */}
       {grouped.size === 0 ? (
         <Card><CardContent className="py-12 text-center text-muted-foreground">No documents found.</CardContent></Card>
       ) : (
@@ -190,7 +185,7 @@ export default function Documents() {
                                 <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleViewDocument(doc)} title="View">
                                   <Eye className="h-3.5 w-3.5" />
                                 </Button>
-                                {role === "admin" && (
+                                {isProjectManager && (
                                   <AlertDialog>
                                     <AlertDialogTrigger asChild>
                                       <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" title="Delete"><Trash2 className="h-3.5 w-3.5" /></Button>

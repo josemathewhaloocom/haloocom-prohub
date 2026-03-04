@@ -23,7 +23,7 @@ interface UpdateWithProject extends DailyUpdate {
 }
 
 export default function DailyUpdates() {
-  const { user, role } = useAuth();
+  const { user, isProjectManager, isEngineer } = useAuth();
   const [updates, setUpdates] = useState<UpdateWithProject[]>([]);
   const [projects, setProjects] = useState<{ id: string; name: string }[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -39,7 +39,6 @@ export default function DailyUpdates() {
     update_date: new Date().toISOString().split("T")[0],
   });
 
-  // Edit state
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingUpdate, setEditingUpdate] = useState<UpdateWithProject | null>(null);
   const [editForm, setEditForm] = useState({
@@ -78,7 +77,7 @@ export default function DailyUpdates() {
   };
 
   const fetchProjects = async () => {
-    if (role === "admin") {
+    if (isProjectManager) {
       const { data } = await supabase.from("projects").select("id, name").neq("status", "closed" as any);
       setProjects(data ?? []);
     } else if (user) {
@@ -96,7 +95,7 @@ export default function DailyUpdates() {
   useEffect(() => {
     fetchUpdates();
     fetchProjects();
-  }, [role, user]);
+  }, [isProjectManager, isEngineer, user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -169,16 +168,19 @@ export default function DailyUpdates() {
   const filtered = filterProject === "all" ? updates : updates.filter((u) => u.project_id === filterProject);
   const updateProjects = [...new Map(updates.map((u) => [u.project_id, u.project_name])).entries()];
 
+  // Engineers (including PM with engineer role) can submit updates
+  const canSubmit = isEngineer && projects.length > 0;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Daily Updates</h1>
           <p className="text-muted-foreground">
-            {role === "admin" ? "View all engineer progress updates." : "Submit and track your daily progress."}
+            {isProjectManager && !isEngineer ? "View all engineer progress updates." : "Submit and track your daily progress."}
           </p>
         </div>
-        {role === "engineer" && projects.length > 0 && (
+        {canSubmit && (
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
               <Button><Plus className="mr-2 h-4 w-4" /> Submit Update</Button>
@@ -255,7 +257,6 @@ export default function DailyUpdates() {
         )}
       </div>
 
-      {/* Filter */}
       <div className="flex items-center gap-3">
         <Select value={filterProject} onValueChange={setFilterProject}>
           <SelectTrigger className="w-48"><SelectValue placeholder="Filter by project" /></SelectTrigger>
@@ -268,11 +269,10 @@ export default function DailyUpdates() {
         </Select>
       </div>
 
-      {/* Updates List */}
       {filtered.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
-            No updates found. {role === "engineer" && "Submit your first daily update!"}
+            No updates found. {isEngineer && "Submit your first daily update!"}
           </CardContent>
         </Card>
       ) : (
@@ -286,7 +286,7 @@ export default function DailyUpdates() {
                       <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20">
                         {update.project_name}
                       </Badge>
-                      {role === "admin" && (
+                      {isProjectManager && (
                         <span className="text-xs text-muted-foreground">by {update.engineer_name}</span>
                       )}
                       <div className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -316,7 +316,7 @@ export default function DailyUpdates() {
                       <Clock className="h-3 w-3" />
                       {update.hours_worked}h
                     </div>
-                    {role === "admin" && (
+                    {isProjectManager && (
                       <div className="flex items-center gap-1 mt-1">
                         <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleEditUpdate(update)} title="Edit"><Edit className="h-3 w-3" /></Button>
                         <AlertDialog>
@@ -344,7 +344,6 @@ export default function DailyUpdates() {
         </div>
       )}
 
-      {/* Edit Update Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>Edit Daily Update</DialogTitle></DialogHeader>

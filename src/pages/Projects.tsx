@@ -24,9 +24,15 @@ interface Product { id: string; name: string; }
 interface ProjectForm extends Partial<ProjectInsert> {
   product_id?: string; product_version?: string; num_users?: number;
   num_channels?: number; trunk?: string; location?: string;
+  sla_period?: string; sla_start_date?: string; sla_end_date?: string;
+  amc_start_date?: string; amc_end_date?: string;
 }
 
 const PROJECT_STATUSES = [
+  { value: "draft", label: "Draft" },
+  { value: "sales_approved", label: "Sales Approved" },
+  { value: "accounts_approved", label: "Accounts Approved" },
+  { value: "admin_reviewed", label: "Admin Reviewed" },
   { value: "open", label: "Open" },
   { value: "qc_completed", label: "QC Completed" },
   { value: "kick_off_scheduled", label: "Kick-Off Scheduled" },
@@ -40,6 +46,10 @@ const PROJECT_STATUSES = [
 ];
 
 const STATUS_STYLES: Record<string, string> = {
+  draft: "bg-muted text-muted-foreground border-border",
+  sales_approved: "bg-info/10 text-info border-info/20",
+  accounts_approved: "bg-info/10 text-info border-info/20",
+  admin_reviewed: "bg-info/10 text-info border-info/20",
   open: "bg-info/10 text-info border-info/20",
   qc_completed: "bg-info/10 text-info border-info/20",
   kick_off_scheduled: "bg-info/10 text-info border-info/20",
@@ -57,23 +67,28 @@ const PRIORITY_STYLES: Record<string, string> = {
   high: "bg-warning/10 text-warning", critical: "bg-destructive/10 text-destructive",
 };
 
+const SLA_PERIODS = [
+  "1 Month", "2 Months", "3 Months", "6 Months", "1 Year", "2 Years"
+];
+
 export default function Projects() {
-  const { role, user } = useAuth();
+  const { isProjectManager, isSales, user } = useAuth();
   const navigate = useNavigate();
   const [projects, setProjects] = useState<Project[]>([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [form, setForm] = useState<ProjectForm>({ status: "open" as any, priority: "medium" });
+  const [form, setForm] = useState<ProjectForm>({ status: "draft" as any, priority: "medium" });
   const [products, setProducts] = useState<Product[]>([]);
 
-  // Date filter
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
-  // Extra data for columns
   const [productMap, setProductMap] = useState<Record<string, string>>({});
   const [engineerMap, setEngineerMap] = useState<Record<string, string>>({});
+
+  const canCreate = isProjectManager || isSales;
+  const canDelete = isProjectManager;
 
   const fetchProjects = async () => {
     const { data } = await supabase.from("projects").select("*").order("created_at", { ascending: false });
@@ -107,7 +122,7 @@ export default function Projects() {
     e.preventDefault();
     const { error } = await supabase.from("projects").insert({
       name: form.name!, client_name: form.client_name!, client_email: form.client_email,
-      client_company: form.client_company, description: form.description, status: form.status,
+      client_company: form.client_company, description: form.description, status: form.status || "draft" as any,
       priority: form.priority, start_date: form.start_date, deadline: form.deadline,
       budget: form.budget, created_by: user!.id,
       ...(form.product_id ? { product_id: form.product_id } : {}),
@@ -116,17 +131,21 @@ export default function Projects() {
       ...(form.num_channels != null ? { num_channels: form.num_channels } : {}),
       ...(form.trunk ? { trunk: form.trunk } : {}),
       ...(form.location ? { location: form.location } : {}),
+      ...(form.sla_period ? { sla_period: form.sla_period } : {}),
+      ...(form.sla_start_date ? { sla_start_date: form.sla_start_date } : {}),
+      ...(form.sla_end_date ? { sla_end_date: form.sla_end_date } : {}),
+      ...(form.amc_start_date ? { amc_start_date: form.amc_start_date } : {}),
+      ...(form.amc_end_date ? { amc_end_date: form.amc_end_date } : {}),
     } as any);
     if (error) { toast.error(error.message); return; }
     toast.success("Project created!");
     setDialogOpen(false);
-    setForm({ status: "open" as any, priority: "medium" });
+    setForm({ status: "draft" as any, priority: "medium" });
     fetchProjects();
   };
 
   const handleDeleteProject = async (projectId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    // Delete related data first
     await supabase.from("project_assignments").delete().eq("project_id", projectId);
     await supabase.from("daily_updates").delete().eq("project_id", projectId);
     await supabase.from("documents").delete().eq("project_id", projectId);
@@ -154,7 +173,7 @@ export default function Projects() {
           <h1 className="text-2xl font-bold tracking-tight">Projects</h1>
           <p className="text-muted-foreground">Manage all engineering projects.</p>
         </div>
-        {role === "admin" && (
+        {canCreate && (
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild><Button><Plus className="mr-2 h-4 w-4" /> New Project</Button></DialogTrigger>
             <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
@@ -169,13 +188,6 @@ export default function Projects() {
                 <div className="space-y-2"><Label>Description</Label><Textarea value={form.description || ""} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} /></div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
-                    <Label>Status</Label>
-                    <Select value={(form.status as string) || "open"} onValueChange={(v) => setForm({ ...form, status: v as any })}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>{PROJECT_STATUSES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
                     <Label>Priority</Label>
                     <Select value={form.priority || "medium"} onValueChange={(v) => setForm({ ...form, priority: v as any })}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
@@ -185,10 +197,25 @@ export default function Projects() {
                       </SelectContent>
                     </Select>
                   </div>
+                  <div className="space-y-2">
+                    <Label>SLA Period</Label>
+                    <Select value={form.sla_period || ""} onValueChange={(v) => setForm({ ...form, sla_period: v })}>
+                      <SelectTrigger><SelectValue placeholder="Select SLA" /></SelectTrigger>
+                      <SelectContent>{SLA_PERIODS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2"><Label>Start Date</Label><Input type="date" value={form.start_date || ""} onChange={(e) => setForm({ ...form, start_date: e.target.value })} /></div>
                   <div className="space-y-2"><Label>Go Live Date</Label><Input type="date" value={form.deadline || ""} onChange={(e) => setForm({ ...form, deadline: e.target.value })} /></div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2"><Label>SLA Start Date</Label><Input type="date" value={form.sla_start_date || ""} onChange={(e) => setForm({ ...form, sla_start_date: e.target.value })} /></div>
+                  <div className="space-y-2"><Label>SLA End Date</Label><Input type="date" value={form.sla_end_date || ""} onChange={(e) => setForm({ ...form, sla_end_date: e.target.value })} /></div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2"><Label>AMC Start Date</Label><Input type="date" value={form.amc_start_date || ""} onChange={(e) => setForm({ ...form, amc_start_date: e.target.value })} /></div>
+                  <div className="space-y-2"><Label>AMC End Date</Label><Input type="date" value={form.amc_end_date || ""} onChange={(e) => setForm({ ...form, amc_end_date: e.target.value })} /></div>
                 </div>
                 <div className="space-y-2"><Label>Budget</Label><Input type="number" value={form.budget ?? ""} onChange={(e) => setForm({ ...form, budget: e.target.value ? Number(e.target.value) : undefined })} /></div>
                 <Separator />
@@ -218,7 +245,6 @@ export default function Projects() {
         )}
       </div>
 
-      {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -235,7 +261,6 @@ export default function Projects() {
         <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-36" placeholder="To" />
       </div>
 
-      {/* Table */}
       <Card>
         <CardContent className="p-0">
           <Table>
@@ -248,12 +273,12 @@ export default function Projects() {
                 <TableHead>Progress</TableHead>
                 <TableHead>Start Date</TableHead>
                 <TableHead>Go Live Date</TableHead>
-                {role === "admin" && <TableHead className="w-12" />}
+                {canDelete && <TableHead className="w-12" />}
               </TableRow>
             </TableHeader>
             <TableBody>
               {filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={role === "admin" ? 8 : 7} className="py-12 text-center text-muted-foreground">No projects found.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={canDelete ? 8 : 7} className="py-12 text-center text-muted-foreground">No projects found.</TableCell></TableRow>
               ) : filtered.map((p) => {
                 const statusLabel = PROJECT_STATUSES.find(s => s.value === p.status)?.label || p.status.replace(/_/g, " ");
                 return (
@@ -275,7 +300,7 @@ export default function Projects() {
                     </TableCell>
                     <TableCell className="text-sm">{p.start_date || "—"}</TableCell>
                     <TableCell className="text-sm">{p.deadline || "—"}</TableCell>
-                    {role === "admin" && (
+                    {canDelete && (
                       <TableCell>
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
