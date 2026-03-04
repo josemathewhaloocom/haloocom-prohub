@@ -1,170 +1,144 @@
+# Multi-Role System, Approval Workflow & Dual-Role Project Manager
 
+## Summary
 
-# Comprehensive Project Hub Enhancement Plan
+Overhaul the role system from 2 roles to 7, add a multi-stage approval workflow before projects reach "open", add new project fields (serial numbers, SLA, AMC), restructure document uploads by role, and allow users (including Project Managers) to hold multiple roles simultaneously.
 
-This plan covers all requested changes organized into 7 phases for clear implementation.
+---
+
+## Key Design Decision: Multi-Role Support
+
+A user can hold **multiple roles** (e.g., Project Manager + Engineer). The `user_roles` table already supports this (one row per role). The auth system will be updated to track `roles: AppRole[]` with helper booleans. When a Project Manager also has the `engineer` role, they get engineer capabilities (document uploads, daily updates on assigned projects) in addition to super-admin access.
 
 ---
 
 ## Phase 1: Database Migration
 
-### 1.1 Add Haloocom Lifecycle Statuses
-Replace the current 4-status enum with the full 11-stage lifecycle:
-- `open`, `qc_completed`, `kick_off_scheduled`, `site_ready`, `on_hold`, `scheduled`, `in_progress`, `client_signing_pending`, `client_signed`, `pending_admin_approval`, `closed`
+**Enum changes:**
 
-This requires creating a new enum and migrating the `projects.status` column (Postgres does not allow removing values from enums easily, so we create a new type).
+- Replace `app_role` enum: `project_manager`, `admin_manager`, `sales`, `sales_manager`, `accounts_manager`, `engineer`, `ceo`
+- Extend `project_status` enum: add `draft`, `sales_approved`, `accounts_approved`, `admin_reviewed` before `open`
 
-### 1.2 Add `signing_token` and `signing_token_expires_at` to `documents`
-For the public client signing portal, each sign-off document needs a unique token and expiry.
+**New columns on `projects`:**
 
-### 1.3 Create `project_field_config` table (dynamic fields)
-Stores admin-defined custom fields per project:
-```text
-id          uuid PK
-field_name  text
-field_type  text (text, number, date, select)
-is_required boolean default false
-sort_order  integer default 0
-created_by  uuid
-created_at  timestamptz
-```
+- `server_serial_number` (text), `gw_sl_no` (text), `sl_no_remarks` (text)
+- `sla_period` (text), `sla_start_date` (date), `sla_end_date` (date)
+- `amc_start_date` (date), `amc_end_date` (date)
 
-### 1.4 Create `project_custom_values` table
-Stores actual values for custom fields per project:
-```text
-id          uuid PK
-project_id  uuid FK -> projects
-field_id    uuid FK -> project_field_config
-value       text
-```
+**New DB functions:**
 
-RLS: Admins full CRUD; engineers SELECT on assigned projects.
+- `is_super_admin()` — checks for `project_manager` role
+- `has_any_role(roles text[])` — checks if user has any of the listed roles
+
+**RLS policy updates** (all tables):
+
+- Replace `is_admin()` references with `is_super_admin()` for full-access policies
+- Add role-specific policies:
+  - `projects`: Sales + Project Manager can INSERT; Sales Manager / Accounts Manager / Admin Manager can UPDATE during their approval step; CEO can SELECT all; Engineer can SELECT assigned
+  - `documents`: role-based INSERT (Sales for SOW/MSA/Pre-install; Admin Manager for DC; Engineer for QC/Installation/Security/Training/Architecture/Completed SOW)
+  - `project_assignments`: Project Manager can manage
+  - `profiles`: all authenticated can view (needed for Users page)
+  - `user_roles`: Project Manager can manage all; users can read own
 
 ---
 
-## Phase 2: Admin Can Edit All Project Fields
+## Phase 2: Auth System (`useAuth.tsx`)
 
-### `ProjectDetail.tsx` - Overview Tab
-- Add an "Edit Project" button (admin only) that opens a dialog pre-filled with all current project fields (name, client info, dates, budget, product details, description)
-- On save, updates the `projects` row and re-fetches
-
----
-
-## Phase 3: Document Signing Portal + Link Generation
-
-### 3.1 Generate signing link on document upload
-- When a sign-off document is uploaded, generate a unique `signing_token` (UUID) and store it in the `documents` row
-- Display a "Copy Signing Link" button that copies `{origin}/sign/{token}` to clipboard
-- This link can be shared with the client via email
-
-### 3.2 Public Signing Page (`/sign/:token`)
-- New file: `src/pages/PublicSign.tsx`
-- Route: `/sign/:token` (outside `AppLayout`, no auth required)
-- Flow:
-  1. Looks up document by `signing_token` where `signed_at IS NULL` and token is not expired
-  2. Shows document name, project name, and a "View Document" button (signed URL)
-  3. Signature pad (canvas) + signer name input
-  4. On submit: updates `signature_url`, `signed_at`, `signer_name`, `signer_ip`
-- Uses the service role via a new edge function `sign-document` for the unauthenticated update
-
-### 3.3 View signed document + approve/reject flow change
-- Always show "View" button on all documents (not just approved)
-- Show signature image inline when `signature_url` exists
-- Approve/Reject buttons available for admin on ALL documents (not just pending) -- admin sees them after client signs so they can review the signature and then approve/reject
+- Fetch **all** roles: `roles: AppRole[]`
+- Add helpers: `isProjectManager`, `isAdminManager`, `isSales`, `isSalesManager`, `isAccountsManager`, `isEngineer`, `isCEO`
+- A user with both `project_manager` and `engineer` roles gets `isProjectManager = true` AND `isEngineer = true`
+- All role checks throughout the app use these helpers
 
 ---
 
-## Phase 4: One Engineer Per Project + Email Notification
+## Phase 3: Sidebar & Routing
 
-### 4.1 Enforce one engineer per project
-- In `ProjectDetail.tsx`, hide "Assign Engineer" button if one is already assigned
-- Add a unique constraint on `project_assignments(project_id)` via migration (or enforce in code)
+`**AppSidebar.tsx**` — role-based nav visibility:
 
-### 4.2 Send email on engineer assignment
-- New edge function: `send-email`
-  - Reads SMTP settings from `smtp_settings` table
-  - Accepts `to`, `subject`, `html` body
-  - Sends email using SMTP (via Deno's `smtp` module or raw SMTP)
-- Modify `handleAssign` in `ProjectDetail.tsx`:
-  - After successful assignment, invoke `send-email` edge function with engineer's email, project name, and assignment details
+- Dashboard, Projects, Documents: all roles
+- Engineers: Project Manager only
+- Daily Updates: Engineer, Project Manager
+- Users: Project Manager only
+- Settings: Project Manager only
+- CEO: view-only everywhere
 
----
-
-## Phase 5: Enhanced Dashboard, Projects List, Engineers Page
-
-### 5.1 Projects List Table Columns
-Update `Projects.tsx` table to show:
-- Client Name, Product, Engineer, Status, Progress, Start Date, Go Live Date (deadline)
-- Fetch product names and assigned engineer names alongside projects
-
-### 5.2 Engineers Page Enhancement
-Update `Engineers.tsx` to show per-engineer:
-- Name, Active Projects, Completed Projects, In Progress, On Hold, Total Projects
-- Fetch all project assignments + project statuses to compute counts
-
-### 5.3 Date Filter on Dashboard, Projects, Engineers
-Add a date range filter (Start Date / End Date) to:
-- `Dashboard.tsx` - filter projects by `start_date`/`deadline` within range
-- `Projects.tsx` - filter by date range
-- `Engineers.tsx` - filter projects within date range
+`**App.tsx**` — add `/users` route
 
 ---
 
-## Phase 6: Documents Page - Group by Project
+## Phase 4: Project Creation & Approval Workflow
 
-Update `Documents.tsx`:
-- Group documents by project name using collapsible sections
-- Each project section shows all its documents with view/status info
-- Add search/filter by project name
+`**Projects.tsx`:**
+
+- Sales and Project Manager can create projects (status = `draft`)
+- Sales uploads SOW, Pre-Installation Checklist, MSA during creation
+
+`**ProjectDetail.tsx` — approval chain:**
+
+1. `draft` → Sales Manager sees "Approve" button → `sales_approved` → email to Accounts Manager
+2. `sales_approved` → Accounts Manager approves → `accounts_approved` → email to Admin Manager
+3. `accounts_approved` → Admin Manager uploads DC + fills serial numbers → `admin_reviewed` → email to Project Manager
+4. `admin_reviewed` → Project Manager sets to `open`, assigns engineer
+
+**Field editing by role:**
+
+- Sales: SLA Period, SLA Start/End, AMC Start/End, client details
+- Admin Manager: Server Serial Number, GW SL No, SL No Remarks
+- Project Manager: everything (super admin)
+- Project Manager with engineer role: can also upload engineer documents and submit daily updates on assigned projects
 
 ---
 
-## Phase 7: Dynamic Project Fields (Admin Configurable)
+## Phase 5: Document Types by Role
 
-### Settings Page Addition
-Add a "Project Fields" section in Settings (admin only):
-- List existing custom fields with name, type, required toggle
-- Add new field form (name, type: text/number/date/select, required)
-- Delete/reorder fields
 
-### Project Detail Integration
-- In the Overview tab, render custom fields below the standard fields
-- Admin edit dialog includes custom fields
-- Custom field values stored in `project_custom_values` table
+| Role                                | Can Upload                                                                                                                      |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Sales                               | SOW, Pre-Installation Checklist, MSA                                                                                            |
+| Admin Manager                       | DC Document                                                                                                                     |
+| Engineer (or PM with engineer role) | QC Report, Installation Completion Report, Security Guidelines, Signed DC, Training Report, Project Architecture, Completed SOW |
+
+
+**Client signing** (public link): Installation Completion Report, Security Guidelines, Training Report, Signed DC only.
+**Internal only** (no client signature): Project Architecture, Completed SOW.
 
 ---
 
-## Files to Create
+## Phase 6: Users Page (`UsersPage.tsx`)
 
-| File | Purpose |
-|---|---|
-| `src/pages/PublicSign.tsx` | Public client signing portal |
-| `supabase/functions/sign-document/index.ts` | Unauthenticated document signing endpoint |
-| `supabase/functions/send-email/index.ts` | SMTP email sending function |
+- Project Manager can view all users, toggle roles on/off per user
+- A user can have multiple roles (e.g., Project Manager + Engineer)
+- Invite new users with selected roles
+- Rename/refactor `invite-engineer` edge function to `invite-user` supporting any role(s)
 
-## Files to Edit
+---
 
-| File | Changes |
-|---|---|
-| `src/App.tsx` | Add `/sign/:token` route |
-| `src/pages/ProjectDetail.tsx` | Admin edit dialog, one-engineer enforcement, signing link generation, view signed docs, lifecycle statuses, custom fields display |
-| `src/pages/Projects.tsx` | New table columns (client, product, engineer, start date, go-live), date filter, lifecycle statuses |
-| `src/pages/Engineers.tsx` | Enhanced stats per engineer, date filter |
-| `src/pages/Dashboard.tsx` | Date range filter |
-| `src/pages/Documents.tsx` | Group by project, search |
-| `src/pages/SettingsPage.tsx` | Dynamic field config section |
-| `src/integrations/supabase/types.ts` | Auto-updated by migration |
+## Phase 7: Edge Function & Email Updates
 
-## Implementation Order
+- `send-email`: allow all roles (not just admin/engineer)
+- `invite-user`: accept `roles: string[]` param, insert multiple `user_roles` rows
+- Workflow emails: notify Sales Manager on draft creation, Accounts Manager on sales approval, Admin Manager on accounts approval, Project Manager on admin review
 
-1. Database migration (lifecycle enum, signing tokens, dynamic fields tables, unique constraint)
-2. `send-email` edge function
-3. `sign-document` edge function
-4. `PublicSign.tsx` + route
-5. `ProjectDetail.tsx` rebuild (edit, signing links, lifecycle statuses, one-engineer, email trigger, custom fields)
-6. `Projects.tsx` (new columns, date filter, lifecycle statuses)
-7. `Engineers.tsx` (enhanced stats, date filter)
-8. `Dashboard.tsx` (date filter)
-9. `Documents.tsx` (group by project)
-10. `SettingsPage.tsx` (dynamic field config)
+---
 
+## Files to Create/Modify
+
+
+| Action | File                                          |
+| ------ | --------------------------------------------- |
+| Create | `src/pages/UsersPage.tsx`                     |
+| Modify | `src/hooks/useAuth.tsx`                       |
+| Modify | `src/components/AppSidebar.tsx`               |
+| Modify | `src/App.tsx`                                 |
+| Modify | `src/pages/Projects.tsx`                      |
+| Modify | `src/pages/ProjectDetail.tsx`                 |
+| Modify | `src/pages/Dashboard.tsx`                     |
+| Modify | `src/pages/Documents.tsx`                     |
+| Modify | `src/pages/Engineers.tsx`                     |
+| Modify | `src/pages/SettingsPage.tsx`                  |
+| Modify | `supabase/functions/send-email/index.ts`      |
+| Modify | `supabase/functions/invite-engineer/index.ts` |
+| Create | SQL migration (enum + columns + RLS)          |
+
+
+This is a large change. I will implement it in the phases listed above, starting with the database migration and auth changes, then the UI.
