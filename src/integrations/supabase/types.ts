@@ -281,6 +281,39 @@ export type Database = {
           },
         ]
       }
+      project_field_config: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          dropdown_options: Json | null
+          field_name: string
+          field_type: string
+          id: string
+          is_required: boolean
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          dropdown_options?: Json | null
+          field_name: string
+          field_type?: string
+          id?: string
+          is_required?: boolean
+          sort_order?: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          dropdown_options?: Json | null
+          field_name?: string
+          field_type?: string
+          id?: string
+          is_required?: boolean
+          sort_order?: number
+        }
+        Relationships: []
+      }
       project_stakeholders: {
         Row: {
           created_at: string
