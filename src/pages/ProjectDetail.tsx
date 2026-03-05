@@ -18,21 +18,18 @@ import { Separator } from "@/components/ui/separator";
 import {
   ArrowLeft, UserPlus, Trash2, Calendar, DollarSign, Package,
   Upload, FileText, CheckCircle, XCircle, Clock, PenTool, Eye,
-  AlertCircle, ChevronRight, RefreshCw, Edit, Link2, Copy
+  AlertCircle, ChevronRight, RefreshCw, Edit, Link2, Copy, ShieldCheck
 } from "lucide-react";
 import { toast } from "sonner";
 import type { Database } from "@/integrations/supabase/types";
 
-type Project = Database["public"]["Tables"]["projects"]["Row"] & {
-  product_id?: string | null;
-  product_version?: string | null;
-  num_users?: number | null;
-  num_channels?: number | null;
-  trunk?: string | null;
-  location?: string | null;
-};
+type Project = Database["public"]["Tables"]["projects"]["Row"];
 
-const PROJECT_STATUSES = [
+const ALL_STATUSES = [
+  { value: "draft", label: "Draft" },
+  { value: "sales_approved", label: "Sales Approved" },
+  { value: "accounts_approved", label: "Accounts Approved" },
+  { value: "admin_reviewed", label: "Admin Reviewed" },
   { value: "open", label: "Open" },
   { value: "qc_completed", label: "QC Completed" },
   { value: "kick_off_scheduled", label: "Kick-Off Scheduled" },
@@ -42,10 +39,30 @@ const PROJECT_STATUSES = [
   { value: "in_progress", label: "In Progress" },
   { value: "client_signing_pending", label: "Client Signing Pending" },
   { value: "client_signed", label: "Client Signed Pending Approval" },
+  { value: "pending_admin_approval", label: "Pending Admin Approval" },
+  { value: "closed", label: "Completed" },
+];
+
+// Statuses the PM can manually pick from (post-open)
+const PM_MANUAL_STATUSES = [
+  { value: "open", label: "Open" },
+  { value: "qc_completed", label: "QC Completed" },
+  { value: "kick_off_scheduled", label: "Kick-Off Scheduled" },
+  { value: "site_ready", label: "Site Ready" },
+  { value: "on_hold", label: "On Hold" },
+  { value: "scheduled", label: "Scheduled" },
+  { value: "in_progress", label: "In Progress" },
+  { value: "client_signing_pending", label: "Client Signing Pending" },
+  { value: "client_signed", label: "Client Signed Pending Approval" },
+  { value: "pending_admin_approval", label: "Pending Admin Approval" },
   { value: "closed", label: "Completed" },
 ];
 
 const STATUS_STYLES: Record<string, string> = {
+  draft: "bg-muted text-muted-foreground border-border",
+  sales_approved: "bg-info/10 text-info border-info/20",
+  accounts_approved: "bg-info/10 text-info border-info/20",
+  admin_reviewed: "bg-info/10 text-info border-info/20",
   open: "bg-info/10 text-info border-info/20",
   qc_completed: "bg-info/10 text-info border-info/20",
   kick_off_scheduled: "bg-info/10 text-info border-info/20",
@@ -55,6 +72,7 @@ const STATUS_STYLES: Record<string, string> = {
   in_progress: "bg-warning/10 text-warning border-warning/20",
   client_signing_pending: "bg-warning/10 text-warning border-warning/20",
   client_signed: "bg-warning/10 text-warning border-warning/20",
+  pending_admin_approval: "bg-warning/10 text-warning border-warning/20",
   closed: "bg-success/10 text-success border-success/20",
 };
 
@@ -65,15 +83,33 @@ const PRIORITY_STYLES: Record<string, string> = {
   critical: "bg-destructive/10 text-destructive",
 };
 
-const DOCUMENT_TYPES = [
-  { value: "qc_report", label: "QC Report" },
+const SLA_PERIODS = ["1 Month", "2 Months", "3 Months", "6 Months", "1 Year", "2 Years"];
+
+// ===== Document types by role =====
+const SALES_DOC_TYPES = [
   { value: "sow", label: "Statement of Work (SOW)" },
-  { value: "architecture", label: "Architecture Diagram" },
-  { value: "sign_off", label: "Sign-Off Document" },
-  { value: "security_guidelines", label: "Security Guidelines" },
-  { value: "training_report", label: "Training Report" },
-  { value: "other", label: "Other" },
+  { value: "pre_installation_checklist", label: "Pre-Installation Checklist" },
+  { value: "msa", label: "MSA" },
 ];
+
+const ADMIN_MANAGER_DOC_TYPES = [
+  { value: "dc_document", label: "DC Document" },
+];
+
+const ENGINEER_DOC_TYPES = [
+  { value: "qc_report", label: "QC Report" },
+  { value: "installation_completion_report", label: "Installation Completion Report" },
+  { value: "security_guidelines", label: "Security Guidelines" },
+  { value: "signed_dc", label: "Signed DC" },
+  { value: "training_report", label: "Training Report" },
+  { value: "project_architecture", label: "Project Architecture" },
+  { value: "completed_sow", label: "Completed SOW" },
+];
+
+// Docs requiring client signature
+const CLIENT_SIGNABLE_TYPES = ["installation_completion_report", "security_guidelines", "training_report", "signed_dc"];
+
+const ALL_DOC_TYPES = [...SALES_DOC_TYPES, ...ADMIN_MANAGER_DOC_TYPES, ...ENGINEER_DOC_TYPES, { value: "other", label: "Other" }];
 
 const APPROVAL_STYLES: Record<string, { class: string; icon: any }> = {
   pending: { class: "bg-warning/10 text-warning border-warning/20", icon: Clock },
@@ -133,20 +169,31 @@ interface CustomField {
   sort_order: number;
 }
 
-interface CustomValue {
-  field_id: string;
-  value: string | null;
-}
-
 interface Product {
   id: string;
   name: string;
 }
 
+// Helper to send workflow notification emails
+async function sendWorkflowEmail(targetRole: string, subject: string, html: string) {
+  try {
+    const { data: roles } = await supabase.from("user_roles").select("user_id").eq("role", targetRole as any);
+    if (!roles?.length) return;
+    const { data: profiles } = await supabase.from("profiles").select("email, first_name").in("id", roles.map(r => r.user_id));
+    for (const p of profiles ?? []) {
+      await supabase.functions.invoke("send-email", {
+        body: { to: p.email, subject, html: html.replace("{{name}}", p.first_name) },
+      });
+    }
+  } catch (err) {
+    console.error("Workflow email failed:", err);
+  }
+}
+
 export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { isProjectManager, isEngineer, user } = useAuth();
+  const { isProjectManager, isEngineer, isAdminManager, isSales, isSalesManager, isAccountsManager, isCEO, user } = useAuth();
   const [project, setProject] = useState<Project | null>(null);
   const [productName, setProductName] = useState<string | null>(null);
   const [assigned, setAssigned] = useState<AssignedEngineer[]>([]);
@@ -194,10 +241,32 @@ export default function ProjectDetail() {
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
   const [customValues, setCustomValues] = useState<Record<string, string>>({});
 
+  // Approval workflow state
+  const [approving, setApproving] = useState(false);
+
+  // Determine which doc types the current user can upload
+  const getUploadableDocTypes = () => {
+    const types: { value: string; label: string }[] = [];
+    if (isSales || isProjectManager) types.push(...SALES_DOC_TYPES);
+    if (isAdminManager || isProjectManager) types.push(...ADMIN_MANAGER_DOC_TYPES);
+    if (isEngineer || isProjectManager) types.push(...ENGINEER_DOC_TYPES);
+    if (isProjectManager) types.push({ value: "other", label: "Other" });
+    // deduplicate
+    const seen = new Set<string>();
+    return types.filter(t => { if (seen.has(t.value)) return false; seen.add(t.value); return true; });
+  };
+
+  // Can the current user edit the project?
+  const canEdit = isProjectManager || isSales || isAdminManager;
+  const canUploadDocs = isSales || isAdminManager || isEngineer || isProjectManager;
+  const canManageStatus = isProjectManager;
+  const canAssignEngineer = isProjectManager;
+  const canSubmitUpdate = isEngineer || isProjectManager;
+
   const fetchProject = async () => {
     if (!id) return;
     const { data } = await supabase.from("projects").select("*").eq("id", id).single();
-    const proj = data as unknown as Project;
+    const proj = data as Project;
     setProject(proj);
     if (proj?.product_id) {
       const { data: prod } = await supabase.from("product_catalog" as any).select("name").eq("id", proj.product_id).single();
@@ -282,12 +351,32 @@ export default function ProjectDetail() {
     if (assignDialogOpen) fetchAvailableEngineers();
   }, [assignDialogOpen, assigned]);
 
+  // ---- Approval workflow actions ----
+  const handleApproveWorkflow = async (nextStatus: string, emailRole: string, emailSubject: string) => {
+    if (!id || !project) return;
+    setApproving(true);
+    const { error } = await supabase.from("projects").update({ status: nextStatus as any }).eq("id", id);
+    if (error) { toast.error(error.message); setApproving(false); return; }
+    toast.success(`Project approved! Status updated.`);
+
+    // Send notification email to next role
+    await sendWorkflowEmail(
+      emailRole,
+      emailSubject.replace("{{project}}", project.name),
+      `<h2>Project Requires Your Attention</h2>
+       <p>Hi {{name}},</p>
+       <p>The project <strong>${project.name}</strong> for client <strong>${project.client_name}</strong> requires your review and approval.</p>
+       <p>Please log in to review the project details.</p>`
+    );
+
+    setApproving(false);
+    fetchProject();
+  };
+
   // ---- Engineer assign/unassign ----
   const handleAssign = async () => {
     if (!selectedEngineer || !id || engineerLoading) return;
     setEngineerLoading(true);
-
-    // Check if already assigned to prevent duplicate key error
     const { data: existing } = await supabase.from("project_assignments").select("id").eq("project_id", id).eq("engineer_id", selectedEngineer).maybeSingle();
     if (existing) {
       toast.info("Engineer is already assigned to this project.");
@@ -295,29 +384,19 @@ export default function ProjectDetail() {
       setAssignDialogOpen(false);
       return;
     }
-
     const { error } = await supabase.from("project_assignments").insert({ project_id: id, engineer_id: selectedEngineer });
     if (error) { toast.error(error.message); setEngineerLoading(false); return; }
-
-    // Close dialog immediately to prevent double-click
     setAssignDialogOpen(false);
-
-    // Send email notification
     const eng = available.find(e => e.id === selectedEngineer);
     if (eng && project) {
-      const { error: emailError } = await supabase.functions.invoke("send-email", {
+      await supabase.functions.invoke("send-email", {
         body: {
           to: eng.email,
           subject: `You've been assigned to project: ${project.name}`,
           html: `<h2>Project Assignment</h2><p>Hi ${eng.first_name},</p><p>You have been assigned to the project <strong>${project.name}</strong> for client <strong>${project.client_name}</strong>.</p><p>Please log in to view the project details.</p>`,
         },
-      });
-      if (emailError) {
-        console.error("Email send failed:", emailError);
-        toast.warning("Engineer assigned but email notification failed. Check SMTP settings.");
-      }
+      }).catch(() => toast.warning("Engineer assigned but email notification failed."));
     }
-
     toast.success("Engineer assigned!");
     setSelectedEngineer("");
     await fetchAssignments();
@@ -348,7 +427,7 @@ export default function ProjectDetail() {
     await Promise.all([fetchUpdates(), fetchProject()]);
   };
 
-  // ---- Document upload with signing token ----
+  // ---- Document upload ----
   const handleUpload = async () => {
     if (!uploadFile || !id || !user) return;
     setUploading(true); setUploadProgress(10);
@@ -357,8 +436,7 @@ export default function ProjectDetail() {
     if (storageError) { toast.error(storageError.message); setUploading(false); setUploadProgress(0); return; }
     setUploadProgress(70);
 
-    // Generate signing token for sign-off docs
-    const needsSignature = ["sign_off", "security_guidelines", "training_report"].includes(uploadDocType);
+    const needsSignature = CLIENT_SIGNABLE_TYPES.includes(uploadDocType);
     const signingToken = needsSignature ? crypto.randomUUID() : null;
     const expiresAt = needsSignature ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() : null;
 
@@ -375,7 +453,7 @@ export default function ProjectDetail() {
       await supabase.from("projects").update({ status: "qc_completed" as any }).eq("id", id);
       toast.info("Project status updated to QC Completed");
       fetchProject();
-    } else if (needsSignature && project && !["client_signing_pending", "client_signed", "closed"].includes(project.status)) {
+    } else if (needsSignature && project && !["client_signing_pending", "client_signed", "pending_admin_approval", "closed"].includes(project.status)) {
       await supabase.from("projects").update({ status: "client_signing_pending" as any }).eq("id", id);
       toast.info("Project status updated to Client Signing Pending");
       fetchProject();
@@ -389,34 +467,27 @@ export default function ProjectDetail() {
       toast.success("Document uploaded!");
     }
 
-    // Send email notification to client when document is uploaded
-    if (project?.client_email) {
-      const docTypeLabel = DOCUMENT_TYPES.find(d => d.value === uploadDocType)?.label || uploadDocType || "Document";
-      const signingLink = needsSignature && signingToken ? `${window.location.origin}/sign/${signingToken}` : null;
-      const { error: emailError } = await supabase.functions.invoke("send-email", {
+    // Send email notification to client for signable docs
+    if (project?.client_email && needsSignature && signingToken) {
+      const docTypeLabel = ALL_DOC_TYPES.find(d => d.value === uploadDocType)?.label || uploadDocType;
+      const signingLink = `${window.location.origin}/sign/${signingToken}`;
+      await supabase.functions.invoke("send-email", {
         body: {
           to: project.client_email,
-          subject: `New document uploaded for project: ${project.name}`,
-          html: `<h2>Document Uploaded</h2>
+          subject: `Document requires your signature: ${project.name}`,
+          html: `<h2>Document Signature Required</h2>
             <p>Dear ${project.client_name},</p>
-            <p>A new <strong>${docTypeLabel}</strong> document (<strong>${uploadFile.name}</strong>) has been uploaded for your project <strong>${project.name}</strong>.</p>
-            ${signingLink ? `<p><a href="${signingLink}" style="background:#2563eb;color:#fff;padding:10px 20px;text-decoration:none;border-radius:6px;display:inline-block;">Sign Document</a></p>` : ""}
-            <p>Please log in or use the signing link above to review.</p>`,
+            <p>A <strong>${docTypeLabel}</strong> document (<strong>${uploadFile.name}</strong>) has been uploaded for your project <strong>${project.name}</strong> and requires your signature.</p>
+            <p><a href="${signingLink}" style="background:#2563eb;color:#fff;padding:10px 20px;text-decoration:none;border-radius:6px;display:inline-block;">Sign Document</a></p>`,
         },
-      });
-      if (emailError) {
-        console.error("Client email failed:", emailError);
-        toast.warning("Document uploaded but client email notification failed.");
-      } else {
-        toast.info("Email notification sent to client.");
-      }
+      }).catch(() => toast.warning("Document uploaded but client email notification failed."));
     }
+
     setUploadFile(null); setUploadDocType(""); setUploading(false); setUploadProgress(0);
     fetchDocuments();
   };
 
   const handleViewDocument = async (doc: ProjectDocument) => {
-    // Open window first to preserve user gesture context (Chrome blocks async popups)
     const newWindow = window.open("", "_blank");
     const { data } = await supabase.storage.from("documents").createSignedUrl(doc.file_url, 60);
     if (data?.signedUrl && newWindow) {
@@ -433,14 +504,11 @@ export default function ProjectDetail() {
     } as any).eq("id", docId);
     if (error) { toast.error(error.message); return; }
     toast.success(`Document ${status}!`);
-
-    // Auto status change: when admin approves, check if all signable docs are approved → mark completed
     if (status === "approved" && id && project?.status === "client_signed") {
       await supabase.from("projects").update({ status: "closed" as any }).eq("id", id);
       toast.info("Project status updated to Completed");
       fetchProject();
     }
-
     fetchDocuments();
   };
 
@@ -498,27 +566,23 @@ export default function ProjectDetail() {
     if (error) { toast.error(error.message); setSavingSignature(false); return; }
     toast.success("Signature saved!");
 
-    // Auto status change to client_signed when document is signed
     if (id && project && project.status === "client_signing_pending") {
       await supabase.from("projects").update({ status: "client_signed" as any }).eq("id", id);
       toast.info("Project status updated to Client Signed Pending Approval");
       fetchProject();
     }
 
-    // Send email notification to admins when client signs
+    // Notify project managers
     try {
-      const { data: adminRoles } = await supabase.from("user_roles").select("user_id").eq("role", "project_manager" as any);
-      if (adminRoles?.length) {
-        const { data: adminProfiles } = await supabase.from("profiles").select("email, first_name").in("id", adminRoles.map(r => r.user_id));
-        for (const admin of adminProfiles ?? []) {
+      const { data: pmRoles } = await supabase.from("user_roles").select("user_id").eq("role", "project_manager" as any);
+      if (pmRoles?.length) {
+        const { data: pmProfiles } = await supabase.from("profiles").select("email, first_name").in("id", pmRoles.map(r => r.user_id));
+        for (const admin of pmProfiles ?? []) {
           await supabase.functions.invoke("send-email", {
             body: {
               to: admin.email,
               subject: `Client signed document on project: ${project?.name}`,
-              html: `<h2>Client Signature Received</h2>
-                <p>Hi ${admin.first_name},</p>
-                <p>Client <strong>${signerName}</strong> has signed the document <strong>${signingDoc.file_name}</strong> on project <strong>${project?.name}</strong>.</p>
-                <p>Please review and approve the document.</p>`,
+              html: `<h2>Client Signature Received</h2><p>Hi ${admin.first_name},</p><p>Client <strong>${signerName}</strong> has signed the document <strong>${signingDoc.file_name}</strong> on project <strong>${project?.name}</strong>.</p><p>Please review and approve the document.</p>`,
             },
           });
         }
@@ -537,7 +601,7 @@ export default function ProjectDetail() {
     setUpdatingStatus(true);
     const { error } = await supabase.from("projects").update({ status: selectedStatus as any }).eq("id", id);
     if (error) { toast.error(error.message); setUpdatingStatus(false); return; }
-    toast.success(`Status updated to "${PROJECT_STATUSES.find(s => s.value === selectedStatus)?.label}"!`);
+    toast.success(`Status updated to "${ALL_STATUSES.find(s => s.value === selectedStatus)?.label}"!`);
     setStatusNote(""); setUpdatingStatus(false); fetchProject();
   };
 
@@ -554,39 +618,77 @@ export default function ProjectDetail() {
       product_version: project.product_version ?? "", num_users: project.num_users ?? "",
       num_channels: project.num_channels ?? "", trunk: project.trunk ?? "", location: project.location ?? "",
       priority: project.priority,
+      // SLA & AMC fields (Sales can edit)
+      sla_period: project.sla_period ?? "", sla_start_date: project.sla_start_date ?? "",
+      sla_end_date: project.sla_end_date ?? "", amc_start_date: project.amc_start_date ?? "",
+      amc_end_date: project.amc_end_date ?? "",
+      // Admin Manager fields
+      server_serial_number: project.server_serial_number ?? "",
+      gw_sl_no: project.gw_sl_no ?? "", sl_no_remarks: project.sl_no_remarks ?? "",
     });
 
-    // Load custom values for edit
     if (id) {
       const { data: cv } = await supabase.from("project_custom_values" as any).select("field_id, value").eq("project_id", id);
       const map: Record<string, string> = {};
       ((cv as any[]) ?? []).forEach((v: any) => { map[v.field_id] = v.value ?? ""; });
       setCustomValues(map);
     }
-
     setEditDialogOpen(true);
   };
 
   const handleSaveEdit = async () => {
     if (!id) return;
     setSavingEdit(true);
-    const { error } = await supabase.from("projects").update({
-      name: editForm.name, client_name: editForm.client_name, client_email: editForm.client_email || null,
-      client_company: editForm.client_company || null, description: editForm.description || null,
-      start_date: editForm.start_date || null, deadline: editForm.deadline || null,
-      budget: editForm.budget ? Number(editForm.budget) : null, product_id: editForm.product_id || null,
-      product_version: editForm.product_version || null, num_users: editForm.num_users ? Number(editForm.num_users) : null,
-      num_channels: editForm.num_channels ? Number(editForm.num_channels) : null,
-      trunk: editForm.trunk || null, location: editForm.location || null, priority: editForm.priority,
-    } as any).eq("id", id);
+
+    const updatePayload: any = {};
+
+    // PM can edit everything
+    if (isProjectManager) {
+      Object.assign(updatePayload, {
+        name: editForm.name, client_name: editForm.client_name, client_email: editForm.client_email || null,
+        client_company: editForm.client_company || null, description: editForm.description || null,
+        start_date: editForm.start_date || null, deadline: editForm.deadline || null,
+        budget: editForm.budget ? Number(editForm.budget) : null, product_id: editForm.product_id || null,
+        product_version: editForm.product_version || null, num_users: editForm.num_users ? Number(editForm.num_users) : null,
+        num_channels: editForm.num_channels ? Number(editForm.num_channels) : null,
+        trunk: editForm.trunk || null, location: editForm.location || null, priority: editForm.priority,
+        sla_period: editForm.sla_period || null, sla_start_date: editForm.sla_start_date || null,
+        sla_end_date: editForm.sla_end_date || null, amc_start_date: editForm.amc_start_date || null,
+        amc_end_date: editForm.amc_end_date || null,
+        server_serial_number: editForm.server_serial_number || null,
+        gw_sl_no: editForm.gw_sl_no || null, sl_no_remarks: editForm.sl_no_remarks || null,
+      });
+    } else if (isSales) {
+      Object.assign(updatePayload, {
+        name: editForm.name, client_name: editForm.client_name, client_email: editForm.client_email || null,
+        client_company: editForm.client_company || null, description: editForm.description || null,
+        start_date: editForm.start_date || null, deadline: editForm.deadline || null,
+        budget: editForm.budget ? Number(editForm.budget) : null, product_id: editForm.product_id || null,
+        product_version: editForm.product_version || null, num_users: editForm.num_users ? Number(editForm.num_users) : null,
+        num_channels: editForm.num_channels ? Number(editForm.num_channels) : null,
+        trunk: editForm.trunk || null, location: editForm.location || null, priority: editForm.priority,
+        sla_period: editForm.sla_period || null, sla_start_date: editForm.sla_start_date || null,
+        sla_end_date: editForm.sla_end_date || null, amc_start_date: editForm.amc_start_date || null,
+        amc_end_date: editForm.amc_end_date || null,
+      });
+    } else if (isAdminManager) {
+      Object.assign(updatePayload, {
+        server_serial_number: editForm.server_serial_number || null,
+        gw_sl_no: editForm.gw_sl_no || null, sl_no_remarks: editForm.sl_no_remarks || null,
+      });
+    }
+
+    const { error } = await supabase.from("projects").update(updatePayload).eq("id", id);
     if (error) { toast.error(error.message); setSavingEdit(false); return; }
 
-    // Save custom field values
-    for (const field of customFields) {
-      const val = customValues[field.id] ?? "";
-      await supabase.from("project_custom_values" as any).upsert({
-        project_id: id, field_id: field.id, value: val || null,
-      }, { onConflict: "project_id,field_id" });
+    // Save custom field values (PM only)
+    if (isProjectManager) {
+      for (const field of customFields) {
+        const val = customValues[field.id] ?? "";
+        await supabase.from("project_custom_values" as any).upsert({
+          project_id: id, field_id: field.id, value: val || null,
+        }, { onConflict: "project_id,field_id" });
+      }
     }
 
     toast.success("Project updated!");
@@ -598,7 +700,26 @@ export default function ProjectDetail() {
     return <div className="flex h-64 items-center justify-center text-muted-foreground">Loading project...</div>;
   }
 
-  const statusLabel = PROJECT_STATUSES.find(s => s.value === project.status)?.label || project.status.replace(/_/g, " ");
+  const statusLabel = ALL_STATUSES.find(s => s.value === project.status)?.label || project.status.replace(/_/g, " ");
+
+  // Determine if current user has an approval action
+  const getApprovalAction = () => {
+    if (project.status === "draft" && isSalesManager) {
+      return { label: "Approve (Sales Manager)", action: () => handleApproveWorkflow("sales_approved", "accounts_manager", "Project pending your approval: {{project}}") };
+    }
+    if (project.status === "sales_approved" && isAccountsManager) {
+      return { label: "Approve (Accounts Manager)", action: () => handleApproveWorkflow("accounts_approved", "admin_manager", "Project pending your review: {{project}}") };
+    }
+    if (project.status === "accounts_approved" && isAdminManager) {
+      return { label: "Submit Review (Admin Manager)", action: () => handleApproveWorkflow("admin_reviewed", "project_manager", "Project ready for assignment: {{project}}") };
+    }
+    if (project.status === "admin_reviewed" && isProjectManager) {
+      return { label: "Set to Open & Assign Engineer", action: () => handleApproveWorkflow("open", "", "") };
+    }
+    return null;
+  };
+
+  const approvalAction = getApprovalAction();
 
   return (
     <div className="space-y-6">
@@ -609,20 +730,64 @@ export default function ProjectDetail() {
           <h1 className="text-2xl font-bold tracking-tight">{project.name}</h1>
           <p className="text-muted-foreground">{project.client_name}{project.client_company ? ` — ${project.client_company}` : ""}</p>
         </div>
-        {isProjectManager && (
+        {canEdit && (
           <Button variant="outline" size="sm" onClick={openEditDialog}><Edit className="mr-2 h-4 w-4" /> Edit Project</Button>
         )}
         <Badge variant="outline" className={STATUS_STYLES[project.status] || ""}>{statusLabel}</Badge>
         <Badge variant="secondary" className={PRIORITY_STYLES[project.priority] || ""}>{project.priority}</Badge>
       </div>
 
+      {/* Approval workflow banner */}
+      {approvalAction && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardContent className="flex items-center justify-between p-4">
+            <div className="flex items-center gap-3">
+              <ShieldCheck className="h-5 w-5 text-primary" />
+              <div>
+                <p className="text-sm font-medium">Approval Required</p>
+                <p className="text-xs text-muted-foreground">This project is awaiting your approval to proceed to the next stage.</p>
+              </div>
+            </div>
+            <Button onClick={approvalAction.action} disabled={approving}>
+              {approving ? "Processing..." : approvalAction.label}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Admin Manager: DC upload + serial numbers section during accounts_approved */}
+      {project.status === "accounts_approved" && isAdminManager && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardHeader><CardTitle className="text-base">Admin Review: Upload DC & Serial Numbers</CardTitle></CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">Please upload the DC document and fill in the serial numbers before approving.</p>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="space-y-2"><Label>Server Serial Number</Label><Input value={editForm.server_serial_number || project.server_serial_number || ""} onChange={(e) => setEditForm({ ...editForm, server_serial_number: e.target.value })} /></div>
+              <div className="space-y-2"><Label>GW SL No</Label><Input value={editForm.gw_sl_no || project.gw_sl_no || ""} onChange={(e) => setEditForm({ ...editForm, gw_sl_no: e.target.value })} /></div>
+              <div className="space-y-2"><Label>SL No Remarks</Label><Input value={editForm.sl_no_remarks || project.sl_no_remarks || ""} onChange={(e) => setEditForm({ ...editForm, sl_no_remarks: e.target.value })} /></div>
+            </div>
+            <Button variant="outline" onClick={async () => {
+              if (!id) return;
+              await supabase.from("projects").update({
+                server_serial_number: editForm.server_serial_number || null,
+                gw_sl_no: editForm.gw_sl_no || null,
+                sl_no_remarks: editForm.sl_no_remarks || null,
+              } as any).eq("id", id);
+              toast.success("Serial numbers saved!");
+              fetchProject();
+            }}>Save Serial Numbers</Button>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Tabs */}
       <Tabs defaultValue="overview">
         <TabsList className="w-full justify-start gap-1 h-auto flex-wrap">
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="updates">Daily Updates</TabsTrigger>
+          {canSubmitUpdate && <TabsTrigger value="updates">Daily Updates</TabsTrigger>}
+          {!canSubmitUpdate && <TabsTrigger value="updates">Daily Updates</TabsTrigger>}
           <TabsTrigger value="documents">Documents</TabsTrigger>
-          {isProjectManager && <TabsTrigger value="status">Status</TabsTrigger>}
+          {canManageStatus && <TabsTrigger value="status">Status</TabsTrigger>}
           <TabsTrigger value="engineers">Engineers</TabsTrigger>
         </TabsList>
 
@@ -678,6 +843,36 @@ export default function ProjectDetail() {
             </Card>
           )}
 
+          {/* SLA & AMC Details */}
+          {(project.sla_period || project.sla_start_date || project.sla_end_date || project.amc_start_date || project.amc_end_date) && (
+            <Card>
+              <CardHeader><CardTitle className="text-base">SLA & AMC Details</CardTitle></CardHeader>
+              <CardContent>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {project.sla_period && <div><p className="text-xs text-muted-foreground">SLA Period</p><p className="text-sm font-medium">{project.sla_period}</p></div>}
+                  {project.sla_start_date && <div><p className="text-xs text-muted-foreground">SLA Start</p><p className="text-sm font-medium">{project.sla_start_date}</p></div>}
+                  {project.sla_end_date && <div><p className="text-xs text-muted-foreground">SLA End</p><p className="text-sm font-medium">{project.sla_end_date}</p></div>}
+                  {project.amc_start_date && <div><p className="text-xs text-muted-foreground">AMC Start</p><p className="text-sm font-medium">{project.amc_start_date}</p></div>}
+                  {project.amc_end_date && <div><p className="text-xs text-muted-foreground">AMC End</p><p className="text-sm font-medium">{project.amc_end_date}</p></div>}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Serial Numbers (Admin Manager fields) */}
+          {(project.server_serial_number || project.gw_sl_no || project.sl_no_remarks) && (
+            <Card>
+              <CardHeader><CardTitle className="text-base">Hardware Details</CardTitle></CardHeader>
+              <CardContent>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {project.server_serial_number && <div><p className="text-xs text-muted-foreground">Server Serial Number</p><p className="text-sm font-medium">{project.server_serial_number}</p></div>}
+                  {project.gw_sl_no && <div><p className="text-xs text-muted-foreground">GW SL No</p><p className="text-sm font-medium">{project.gw_sl_no}</p></div>}
+                  {project.sl_no_remarks && <div><p className="text-xs text-muted-foreground">SL No Remarks</p><p className="text-sm font-medium">{project.sl_no_remarks}</p></div>}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Custom fields display */}
           {customFields.length > 0 && (
             <Card>
@@ -698,24 +893,26 @@ export default function ProjectDetail() {
 
         {/* ===== DAILY UPDATES TAB ===== */}
         <TabsContent value="updates" className="space-y-4 mt-4">
-          <Card>
-            <CardHeader><CardTitle className="text-base">Submit Daily Update</CardTitle></CardHeader>
-            <CardContent>
-              <form onSubmit={handleSubmitUpdate} className="space-y-4">
-                <div className="space-y-2"><Label>Summary *</Label><Textarea placeholder="What did you work on today?" value={updateSummary} onChange={(e) => setUpdateSummary(e.target.value)} required /></div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Progress % ({updateProgress}%)</Label>
-                    <input type="range" min={0} max={100} step={5} value={updateProgress} onChange={(e) => setUpdateProgress(Number(e.target.value))} className="w-full accent-primary" />
-                    <Progress value={updateProgress} className="h-2" />
+          {canSubmitUpdate && (
+            <Card>
+              <CardHeader><CardTitle className="text-base">Submit Daily Update</CardTitle></CardHeader>
+              <CardContent>
+                <form onSubmit={handleSubmitUpdate} className="space-y-4">
+                  <div className="space-y-2"><Label>Summary *</Label><Textarea placeholder="What did you work on today?" value={updateSummary} onChange={(e) => setUpdateSummary(e.target.value)} required /></div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Progress % ({updateProgress}%)</Label>
+                      <input type="range" min={0} max={100} step={5} value={updateProgress} onChange={(e) => setUpdateProgress(Number(e.target.value))} className="w-full accent-primary" />
+                      <Progress value={updateProgress} className="h-2" />
+                    </div>
+                    <div className="space-y-2"><Label>Hours Worked</Label><Input type="number" min={0} max={24} step={0.5} value={updateHours} onChange={(e) => setUpdateHours(Number(e.target.value))} /></div>
                   </div>
-                  <div className="space-y-2"><Label>Hours Worked</Label><Input type="number" min={0} max={24} step={0.5} value={updateHours} onChange={(e) => setUpdateHours(Number(e.target.value))} /></div>
-                </div>
-                <div className="space-y-2"><Label>Blockers (optional)</Label><Textarea placeholder="Any blockers or issues?" value={updateBlockers} onChange={(e) => setUpdateBlockers(e.target.value)} rows={2} /></div>
-                <Button type="submit" disabled={submittingUpdate || !updateSummary}>{submittingUpdate ? "Submitting..." : "Submit Update"}</Button>
-              </form>
-            </CardContent>
-          </Card>
+                  <div className="space-y-2"><Label>Blockers (optional)</Label><Textarea placeholder="Any blockers or issues?" value={updateBlockers} onChange={(e) => setUpdateBlockers(e.target.value)} rows={2} /></div>
+                  <Button type="submit" disabled={submittingUpdate || !updateSummary}>{submittingUpdate ? "Submitting..." : "Submit Update"}</Button>
+                </form>
+              </CardContent>
+            </Card>
+          )}
           <div className="space-y-3">
             {updates.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-muted-foreground"><AlertCircle className="h-8 w-8 mb-2 opacity-40" /><p>No updates yet for this project.</p></div>
@@ -728,7 +925,7 @@ export default function ProjectDetail() {
                   </div>
                   <div className="text-right shrink-0">
                     <p className="text-xs text-muted-foreground">{new Date(u.update_date).toLocaleDateString()}</p>
-                    {isProjectManager && <p className="text-xs text-muted-foreground">{u.engineer_name}</p>}
+                    <p className="text-xs text-muted-foreground">{u.engineer_name}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-4 text-xs text-muted-foreground">
@@ -745,25 +942,27 @@ export default function ProjectDetail() {
 
         {/* ===== DOCUMENTS TAB ===== */}
         <TabsContent value="documents" className="space-y-4 mt-4">
-          <Card>
-            <CardHeader><CardTitle className="text-base flex items-center gap-2"><Upload className="h-4 w-4" /> Upload Document</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2"><Label>File</Label><Input type="file" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.xlsx,.xls" onChange={(e) => setUploadFile(e.target.files?.[0] ?? null)} /></div>
-                <div className="space-y-2">
-                  <Label>Document Type</Label>
-                  <Select value={uploadDocType} onValueChange={setUploadDocType}>
-                    <SelectTrigger><SelectValue placeholder="Select type..." /></SelectTrigger>
-                    <SelectContent>{DOCUMENT_TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
-                  </Select>
+          {canUploadDocs && (
+            <Card>
+              <CardHeader><CardTitle className="text-base flex items-center gap-2"><Upload className="h-4 w-4" /> Upload Document</CardTitle></CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2"><Label>File</Label><Input type="file" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.xlsx,.xls" onChange={(e) => setUploadFile(e.target.files?.[0] ?? null)} /></div>
+                  <div className="space-y-2">
+                    <Label>Document Type</Label>
+                    <Select value={uploadDocType} onValueChange={setUploadDocType}>
+                      <SelectTrigger><SelectValue placeholder="Select type..." /></SelectTrigger>
+                      <SelectContent>{getUploadableDocTypes().map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
                 </div>
-              </div>
-              {uploading && <Progress value={uploadProgress} className="h-2" />}
-              <Button onClick={handleUpload} disabled={!uploadFile || uploading}>
-                {uploading ? "Uploading..." : <><Upload className="mr-2 h-4 w-4" />Upload</>}
-              </Button>
-            </CardContent>
-          </Card>
+                {uploading && <Progress value={uploadProgress} className="h-2" />}
+                <Button onClick={handleUpload} disabled={!uploadFile || uploading}>
+                  {uploading ? "Uploading..." : <><Upload className="mr-2 h-4 w-4" />Upload</>}
+                </Button>
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardHeader><CardTitle className="text-base flex items-center gap-2"><FileText className="h-4 w-4" /> Documents</CardTitle></CardHeader>
@@ -787,7 +986,8 @@ export default function ProjectDetail() {
                     const statusStyle = APPROVAL_STYLES[doc.approval_status] || APPROVAL_STYLES.pending;
                     const StatusIcon = statusStyle.icon;
                     const isOwn = doc.uploaded_by === user?.id;
-                    const docTypeLabel = DOCUMENT_TYPES.find(t => t.value === doc.document_type)?.label ?? doc.document_type ?? "—";
+                    const docTypeLabel = ALL_DOC_TYPES.find(t => t.value === doc.document_type)?.label ?? doc.document_type ?? "—";
+                    const isSignable = CLIENT_SIGNABLE_TYPES.includes(doc.document_type ?? "");
                     return (
                       <TableRow key={doc.id}>
                         <TableCell className="font-medium text-sm max-w-[200px] truncate" title={doc.file_name}>{doc.file_name}</TableCell>
@@ -815,7 +1015,7 @@ export default function ProjectDetail() {
                             {doc.signing_token && !doc.signed_at && (
                               <Button variant="ghost" size="icon" className="h-7 w-7 text-info" onClick={() => copySigningLink(doc)} title="Copy Signing Link"><Copy className="h-3.5 w-3.5" /></Button>
                             )}
-                            {(doc.document_type === "sign_off" || isProjectManager) && !doc.signed_at && (
+                            {isSignable && !doc.signed_at && (isProjectManager || isOwn) && (
                               <Button variant="ghost" size="icon" className="h-7 w-7 text-primary" onClick={() => { setSigningDoc(doc); setSignerName(""); setSignDialogOpen(true); }} title="Get Signed"><PenTool className="h-3.5 w-3.5" /></Button>
                             )}
                             {isProjectManager && (
@@ -852,17 +1052,17 @@ export default function ProjectDetail() {
           </Card>
         </TabsContent>
 
-        {/* ===== STATUS TAB (admin only) ===== */}
-        {isProjectManager && (
+        {/* ===== STATUS TAB (PM only) ===== */}
+        {canManageStatus && (
           <TabsContent value="status" className="space-y-4 mt-4">
             <Card>
               <CardHeader><CardTitle className="text-base">Project Status Pipeline</CardTitle></CardHeader>
               <CardContent className="space-y-6">
                 <div className="flex flex-wrap gap-2 items-center">
-                  {PROJECT_STATUSES.map((s, i) => (
+                  {ALL_STATUSES.map((s, i) => (
                     <div key={s.value} className="flex items-center gap-2">
                       <div className={`flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium border transition-colors ${project.status === s.value ? "bg-primary text-primary-foreground border-primary" : "bg-muted/50 text-muted-foreground border-border"}`}>{s.label}</div>
-                      {i < PROJECT_STATUSES.length - 1 && <ChevronRight className="h-3 w-3 text-muted-foreground" />}
+                      {i < ALL_STATUSES.length - 1 && <ChevronRight className="h-3 w-3 text-muted-foreground" />}
                     </div>
                   ))}
                 </div>
@@ -871,7 +1071,7 @@ export default function ProjectDetail() {
                     <Label>Change Status To</Label>
                     <Select value={selectedStatus} onValueChange={setSelectedStatus}>
                       <SelectTrigger className="w-64"><SelectValue placeholder="Select new status..." /></SelectTrigger>
-                      <SelectContent>{PROJECT_STATUSES.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
+                      <SelectContent>{PM_MANUAL_STATUSES.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2"><Label>Audit Note (optional)</Label><Textarea placeholder="Add a note about this status change..." value={statusNote} onChange={(e) => setStatusNote(e.target.value)} rows={3} /></div>
@@ -887,7 +1087,7 @@ export default function ProjectDetail() {
           <Card>
             <CardHeader className="flex-row items-center justify-between space-y-0">
               <CardTitle className="text-base">Assigned Engineers</CardTitle>
-              {isProjectManager && assigned.length === 0 && (
+              {canAssignEngineer && assigned.length === 0 && (
                 <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
                   <DialogTrigger asChild><Button size="sm"><UserPlus className="mr-2 h-4 w-4" /> Assign Engineer</Button></DialogTrigger>
                   <DialogContent>
@@ -908,22 +1108,22 @@ export default function ProjectDetail() {
                   </DialogContent>
                 </Dialog>
               )}
-              {isProjectManager && assigned.length > 0 && (
+              {canAssignEngineer && assigned.length > 0 && (
                 <p className="text-xs text-muted-foreground">One engineer per project</p>
               )}
             </CardHeader>
             <CardContent className="p-0">
               <Table>
-                <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Email</TableHead><TableHead>Assigned</TableHead>{isProjectManager && <TableHead className="w-12" />}</TableRow></TableHeader>
+                <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Email</TableHead><TableHead>Assigned</TableHead>{canAssignEngineer && <TableHead className="w-12" />}</TableRow></TableHeader>
                 <TableBody>
                   {assigned.length === 0 ? (
-                    <TableRow><TableCell colSpan={isProjectManager ? 4 : 3} className="py-8 text-center text-muted-foreground">No engineers assigned yet.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={canAssignEngineer ? 4 : 3} className="py-8 text-center text-muted-foreground">No engineers assigned yet.</TableCell></TableRow>
                   ) : assigned.map((eng) => (
                     <TableRow key={eng.assignment_id}>
                       <TableCell className="font-medium">{eng.first_name} {eng.last_name}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">{eng.email}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">{new Date(eng.assigned_at).toLocaleDateString()}</TableCell>
-                      {isProjectManager && <TableCell><Button variant="ghost" size="icon" onClick={() => handleUnassign(eng.assignment_id)}><Trash2 className="h-4 w-4 text-destructive" /></Button></TableCell>}
+                      {canAssignEngineer && <TableCell><Button variant="ghost" size="icon" onClick={() => handleUnassign(eng.assignment_id)}><Trash2 className="h-4 w-4 text-destructive" /></Button></TableCell>}
                     </TableRow>
                   ))}
                 </TableBody>
@@ -959,53 +1159,91 @@ export default function ProjectDetail() {
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Edit Project</DialogTitle></DialogHeader>
           <div className="space-y-4">
-            <div className="space-y-2"><Label>Project Name *</Label><Input value={editForm.name || ""} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} /></div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2"><Label>Client Name *</Label><Input value={editForm.client_name || ""} onChange={(e) => setEditForm({ ...editForm, client_name: e.target.value })} /></div>
-              <div className="space-y-2"><Label>Client Email</Label><Input value={editForm.client_email || ""} onChange={(e) => setEditForm({ ...editForm, client_email: e.target.value })} /></div>
-            </div>
-            <div className="space-y-2"><Label>Client Company</Label><Input value={editForm.client_company || ""} onChange={(e) => setEditForm({ ...editForm, client_company: e.target.value })} /></div>
-            <div className="space-y-2"><Label>Description</Label><Textarea value={editForm.description || ""} onChange={(e) => setEditForm({ ...editForm, description: e.target.value })} rows={3} /></div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2"><Label>Start Date</Label><Input type="date" value={editForm.start_date || ""} onChange={(e) => setEditForm({ ...editForm, start_date: e.target.value })} /></div>
-              <div className="space-y-2"><Label>Go Live Date</Label><Input type="date" value={editForm.deadline || ""} onChange={(e) => setEditForm({ ...editForm, deadline: e.target.value })} /></div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2"><Label>Budget</Label><Input type="number" value={editForm.budget ?? ""} onChange={(e) => setEditForm({ ...editForm, budget: e.target.value })} /></div>
-              <div className="space-y-2">
-                <Label>Priority</Label>
-                <Select value={editForm.priority || "medium"} onValueChange={(v) => setEditForm({ ...editForm, priority: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="low">Low</SelectItem><SelectItem value="medium">Medium</SelectItem>
-                    <SelectItem value="high">High</SelectItem><SelectItem value="critical">Critical</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <Separator />
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Product Details</p>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>Product</Label>
-                <Select value={editForm.product_id || ""} onValueChange={(v) => setEditForm({ ...editForm, product_id: v })}>
-                  <SelectTrigger><SelectValue placeholder="Select product" /></SelectTrigger>
-                  <SelectContent>{products.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2"><Label>Version</Label><Input value={editForm.product_version || ""} onChange={(e) => setEditForm({ ...editForm, product_version: e.target.value })} /></div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2"><Label>No. of Users</Label><Input type="number" value={editForm.num_users ?? ""} onChange={(e) => setEditForm({ ...editForm, num_users: e.target.value })} /></div>
-              <div className="space-y-2"><Label>No. of Channels</Label><Input type="number" value={editForm.num_channels ?? ""} onChange={(e) => setEditForm({ ...editForm, num_channels: e.target.value })} /></div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2"><Label>Trunk</Label><Input value={editForm.trunk || ""} onChange={(e) => setEditForm({ ...editForm, trunk: e.target.value })} /></div>
-              <div className="space-y-2"><Label>Location</Label><Input value={editForm.location || ""} onChange={(e) => setEditForm({ ...editForm, location: e.target.value })} /></div>
-            </div>
+            {/* Common fields - Sales & PM */}
+            {(isSales || isProjectManager) && (
+              <>
+                <div className="space-y-2"><Label>Project Name *</Label><Input value={editForm.name || ""} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} /></div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2"><Label>Client Name *</Label><Input value={editForm.client_name || ""} onChange={(e) => setEditForm({ ...editForm, client_name: e.target.value })} /></div>
+                  <div className="space-y-2"><Label>Client Email</Label><Input value={editForm.client_email || ""} onChange={(e) => setEditForm({ ...editForm, client_email: e.target.value })} /></div>
+                </div>
+                <div className="space-y-2"><Label>Client Company</Label><Input value={editForm.client_company || ""} onChange={(e) => setEditForm({ ...editForm, client_company: e.target.value })} /></div>
+                <div className="space-y-2"><Label>Description</Label><Textarea value={editForm.description || ""} onChange={(e) => setEditForm({ ...editForm, description: e.target.value })} rows={3} /></div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2"><Label>Start Date</Label><Input type="date" value={editForm.start_date || ""} onChange={(e) => setEditForm({ ...editForm, start_date: e.target.value })} /></div>
+                  <div className="space-y-2"><Label>Go Live Date</Label><Input type="date" value={editForm.deadline || ""} onChange={(e) => setEditForm({ ...editForm, deadline: e.target.value })} /></div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2"><Label>Budget</Label><Input type="number" value={editForm.budget ?? ""} onChange={(e) => setEditForm({ ...editForm, budget: e.target.value })} /></div>
+                  <div className="space-y-2">
+                    <Label>Priority</Label>
+                    <Select value={editForm.priority || "medium"} onValueChange={(v) => setEditForm({ ...editForm, priority: v })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="low">Low</SelectItem><SelectItem value="medium">Medium</SelectItem>
+                        <SelectItem value="high">High</SelectItem><SelectItem value="critical">Critical</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <Separator />
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Product Details</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>Product</Label>
+                    <Select value={editForm.product_id || ""} onValueChange={(v) => setEditForm({ ...editForm, product_id: v })}>
+                      <SelectTrigger><SelectValue placeholder="Select product" /></SelectTrigger>
+                      <SelectContent>{products.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2"><Label>Version</Label><Input value={editForm.product_version || ""} onChange={(e) => setEditForm({ ...editForm, product_version: e.target.value })} /></div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2"><Label>No. of Users</Label><Input type="number" value={editForm.num_users ?? ""} onChange={(e) => setEditForm({ ...editForm, num_users: e.target.value })} /></div>
+                  <div className="space-y-2"><Label>No. of Channels</Label><Input type="number" value={editForm.num_channels ?? ""} onChange={(e) => setEditForm({ ...editForm, num_channels: e.target.value })} /></div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2"><Label>Trunk</Label><Input value={editForm.trunk || ""} onChange={(e) => setEditForm({ ...editForm, trunk: e.target.value })} /></div>
+                  <div className="space-y-2"><Label>Location</Label><Input value={editForm.location || ""} onChange={(e) => setEditForm({ ...editForm, location: e.target.value })} /></div>
+                </div>
+                <Separator />
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">SLA & AMC</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>SLA Period</Label>
+                    <Select value={editForm.sla_period || ""} onValueChange={(v) => setEditForm({ ...editForm, sla_period: v })}>
+                      <SelectTrigger><SelectValue placeholder="Select SLA" /></SelectTrigger>
+                      <SelectContent>{SLA_PERIODS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                  <div />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2"><Label>SLA Start Date</Label><Input type="date" value={editForm.sla_start_date || ""} onChange={(e) => setEditForm({ ...editForm, sla_start_date: e.target.value })} /></div>
+                  <div className="space-y-2"><Label>SLA End Date</Label><Input type="date" value={editForm.sla_end_date || ""} onChange={(e) => setEditForm({ ...editForm, sla_end_date: e.target.value })} /></div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2"><Label>AMC Start Date</Label><Input type="date" value={editForm.amc_start_date || ""} onChange={(e) => setEditForm({ ...editForm, amc_start_date: e.target.value })} /></div>
+                  <div className="space-y-2"><Label>AMC End Date</Label><Input type="date" value={editForm.amc_end_date || ""} onChange={(e) => setEditForm({ ...editForm, amc_end_date: e.target.value })} /></div>
+                </div>
+              </>
+            )}
 
-            {/* Custom fields in edit dialog */}
-            {customFields.length > 0 && (
+            {/* Admin Manager fields */}
+            {(isAdminManager || isProjectManager) && (
+              <>
+                <Separator />
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Hardware / Serial Numbers</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2"><Label>Server Serial Number</Label><Input value={editForm.server_serial_number || ""} onChange={(e) => setEditForm({ ...editForm, server_serial_number: e.target.value })} /></div>
+                  <div className="space-y-2"><Label>GW SL No</Label><Input value={editForm.gw_sl_no || ""} onChange={(e) => setEditForm({ ...editForm, gw_sl_no: e.target.value })} /></div>
+                </div>
+                <div className="space-y-2"><Label>SL No Remarks</Label><Input value={editForm.sl_no_remarks || ""} onChange={(e) => setEditForm({ ...editForm, sl_no_remarks: e.target.value })} /></div>
+              </>
+            )}
+
+            {/* Custom fields (PM only) */}
+            {isProjectManager && customFields.length > 0 && (
               <>
                 <Separator />
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Custom Fields</p>

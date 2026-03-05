@@ -17,7 +17,7 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Verify the caller is admin
+    // Verify the caller is a project_manager (super admin)
     const authHeader = req.headers.get("Authorization")!;
     const token = authHeader.replace("Bearer ", "");
     const { data: { user: caller } } = await supabaseAdmin.auth.getUser(token);
@@ -27,15 +27,20 @@ serve(async (req) => {
       .from("user_roles")
       .select("role")
       .eq("user_id", caller.id)
-      .eq("role", "admin")
+      .eq("role", "project_manager")
       .maybeSingle();
 
-    if (!roleCheck) throw new Error("Only admins can invite engineers");
+    if (!roleCheck) throw new Error("Only Project Managers can invite users");
 
-    const { email, password, first_name, last_name } = await req.json();
+    const { email, password, first_name, last_name, roles } = await req.json();
     if (!email || !password || !first_name) {
       throw new Error("Email, password, and first name are required");
     }
+
+    // Determine roles to assign - support both old single-role and new multi-role format
+    const rolesToAssign: string[] = Array.isArray(roles) && roles.length > 0
+      ? roles
+      : ["engineer"]; // backwards compatibility
 
     // Try to create user
     const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
@@ -48,7 +53,6 @@ serve(async (req) => {
     let userId: string;
 
     if (createError) {
-      // If user already exists, look them up
       if (createError.message?.includes("already been registered")) {
         const { data: { users }, error: listError } = await supabaseAdmin.auth.admin.listUsers();
         if (listError) throw listError;
@@ -62,12 +66,13 @@ serve(async (req) => {
       userId = newUser.user.id;
     }
 
-    // Assign engineer role (upsert to avoid duplicate key)
-    const { error: roleError } = await supabaseAdmin
-      .from("user_roles")
-      .upsert({ user_id: userId, role: "engineer" }, { onConflict: "user_id,role" });
-
-    if (roleError) throw roleError;
+    // Assign all requested roles (upsert to avoid duplicate key)
+    for (const role of rolesToAssign) {
+      const { error: roleError } = await supabaseAdmin
+        .from("user_roles")
+        .upsert({ user_id: userId, role }, { onConflict: "user_id,role" });
+      if (roleError) throw roleError;
+    }
 
     return new Response(
       JSON.stringify({ success: true, user_id: userId }),

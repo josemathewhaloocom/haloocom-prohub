@@ -141,6 +141,26 @@ export default function Projects() {
     toast.success("Project created!");
     setDialogOpen(false);
     setForm({ status: "draft" as any, priority: "medium" });
+
+    // Notify Sales Manager about new project
+    try {
+      const { data: smRoles } = await supabase.from("user_roles").select("user_id").eq("role", "sales_manager" as any);
+      if (smRoles?.length) {
+        const { data: smProfiles } = await supabase.from("profiles").select("email, first_name").in("id", smRoles.map(r => r.user_id));
+        for (const sm of smProfiles ?? []) {
+          await supabase.functions.invoke("send-email", {
+            body: {
+              to: sm.email,
+              subject: `New project requires your approval: ${form.name}`,
+              html: `<h2>New Project Created</h2><p>Hi ${sm.first_name},</p><p>A new project <strong>${form.name}</strong> for client <strong>${form.client_name}</strong> has been created and requires your approval.</p><p>Please log in to review.</p>`,
+            },
+          });
+        }
+      }
+    } catch (err) {
+      console.error("Sales Manager notification failed:", err);
+    }
+
     fetchProjects();
   };
 
