@@ -13,6 +13,7 @@ import Documents from "@/pages/Documents";
 import SettingsPage from "@/pages/SettingsPage";
 import ProjectDetail from "@/pages/ProjectDetail";
 import DailyUpdates from "@/pages/DailyUpdates";
+import UsersPage from "@/pages/UsersPage";
 import NotFound from "./pages/NotFound";
 import PublicSign from "./pages/PublicSign";
 
@@ -35,6 +36,7 @@ const App = () => (
               <Route path="/engineers" element={<Engineers />} />
               <Route path="/updates" element={<DailyUpdates />} />
               <Route path="/documents" element={<Documents />} />
+              <Route path="/users" element={<UsersPage />} />
               <Route path="/settings" element={<SettingsPage />} />
             </Route>
             <Route path="*" element={<NotFound />} />

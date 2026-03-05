@@ -19,7 +19,6 @@ async function sendViaSMTP(smtp: any, to: string, subject: string, html: string)
 
   let conn: Deno.Conn;
 
-  // Port 465 = direct SSL/TLS, Port 587 = plain then STARTTLS
   if (port === 465 || smtp.use_ssl === true) {
     conn = await Deno.connectTls({ hostname: host, port });
   } else {
@@ -38,24 +37,17 @@ async function sendViaSMTP(smtp: any, to: string, subject: string, html: string)
     return await readResponse();
   }
 
-  // Read greeting
   await readResponse();
-
-  // EHLO
   await sendCommand(`EHLO localhost`);
 
-  // STARTTLS for port 587
   if (port !== 465 && smtp.use_ssl !== true) {
     const starttlsResp = await sendCommand("STARTTLS");
     if (starttlsResp.startsWith("220")) {
-      // Upgrade to TLS
       conn = await Deno.startTls(conn as Deno.TcpConn, { hostname: host });
-      // Re-EHLO after TLS upgrade
       await sendCommand(`EHLO localhost`);
     }
   }
 
-  // AUTH LOGIN
   if (username && password) {
     await sendCommand("AUTH LOGIN");
     await sendCommand(btoa(username));
@@ -66,21 +58,18 @@ async function sendViaSMTP(smtp: any, to: string, subject: string, html: string)
     }
   }
 
-  // MAIL FROM
   const mailFromResp = await sendCommand(`MAIL FROM:<${fromEmail}>`);
   if (!mailFromResp.startsWith("250")) {
     conn.close();
     throw new Error("MAIL FROM rejected: " + mailFromResp);
   }
 
-  // RCPT TO
   const rcptResp = await sendCommand(`RCPT TO:<${to}>`);
   if (!rcptResp.startsWith("250")) {
     conn.close();
     throw new Error("RCPT TO rejected: " + rcptResp);
   }
 
-  // DATA
   await sendCommand("DATA");
   const message = [
     `From: "${fromName}" <${fromEmail}>`,
@@ -93,8 +82,7 @@ async function sendViaSMTP(smtp: any, to: string, subject: string, html: string)
     `.`,
   ].join("\r\n");
 
-  const dataResp = await sendCommand(message);
-  
+  await sendCommand(message);
   await sendCommand("QUIT");
   conn.close();
 
@@ -120,21 +108,19 @@ serve(async (req) => {
     const { data: { user: caller } } = await supabaseAdmin.auth.getUser(token);
     if (!caller) throw new Error("Unauthorized");
 
-    // Check admin or allow internal calls
+    // Allow any authenticated user with a role to send emails
     const { data: roleCheck } = await supabaseAdmin
       .from("user_roles")
       .select("role")
       .eq("user_id", caller.id)
-      .in("role", ["admin", "engineer"])
       .limit(1);
-    if (!roleCheck || roleCheck.length === 0) throw new Error("Only authenticated users with roles can send emails");
+    if (!roleCheck || roleCheck.length === 0) throw new Error("Only users with roles can send emails");
 
     const { to, subject, html } = await req.json();
     if (!to || !subject || !html) throw new Error("to, subject, and html are required");
 
     console.log("Sending email to:", to, "Subject:", subject);
 
-    // Fetch SMTP settings
     const { data: smtp, error: smtpError } = await supabaseAdmin
       .from("smtp_settings")
       .select("*")
