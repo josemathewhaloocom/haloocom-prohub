@@ -56,12 +56,21 @@ export default function Documents() {
 
   const handleViewDocument = async (doc: DocWithProject) => {
     const newWindow = window.open("", "_blank");
-    const { data } = await supabase.storage.from("documents").createSignedUrl(doc.file_url, 60);
-    if (data?.signedUrl && newWindow) {
-      newWindow.location.href = data.signedUrl;
-    } else {
+    try {
+      const { data, error } = await supabase.storage.from("documents").createSignedUrl(doc.file_url, 3600);
+      if (error || !data?.signedUrl) {
+        if (newWindow) newWindow.close();
+        toast.error("Could not generate download link: " + (error?.message || "Unknown error"));
+        return;
+      }
+      if (newWindow) {
+        newWindow.location.href = data.signedUrl;
+      } else {
+        window.location.href = data.signedUrl;
+      }
+    } catch (err: any) {
       if (newWindow) newWindow.close();
-      toast.error("Could not generate download link.");
+      toast.error("Error viewing document: " + err.message);
     }
   };
 

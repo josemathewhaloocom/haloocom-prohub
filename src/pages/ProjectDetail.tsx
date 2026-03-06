@@ -43,7 +43,6 @@ const ALL_STATUSES = [
   { value: "closed", label: "Completed" },
 ];
 
-// Statuses the PM can manually pick from (post-open)
 const PM_MANUAL_STATUSES = [
   { value: "open", label: "Open" },
   { value: "qc_completed", label: "QC Completed" },
@@ -94,6 +93,7 @@ const SALES_DOC_TYPES = [
 
 const ADMIN_MANAGER_DOC_TYPES = [
   { value: "dc_document", label: "DC Document" },
+  { value: "gate_pass", label: "Gate Pass" },
 ];
 
 const ENGINEER_DOC_TYPES = [
@@ -105,6 +105,13 @@ const ENGINEER_DOC_TYPES = [
   { value: "project_architecture", label: "Project Architecture" },
   { value: "completed_sow", label: "Completed SOW" },
 ];
+
+// Sales doc types (approved by Sales Manager)
+const SALES_DOC_TYPE_VALUES = SALES_DOC_TYPES.map(d => d.value);
+// Admin Manager doc types (approved by PM)
+const ADMIN_DOC_TYPE_VALUES = ADMIN_MANAGER_DOC_TYPES.map(d => d.value);
+// Engineer doc types (approved by PM)
+const ENGINEER_DOC_TYPE_VALUES = ENGINEER_DOC_TYPES.map(d => d.value);
 
 // Docs requiring client signature
 const CLIENT_SIGNABLE_TYPES = ["installation_completion_report", "security_guidelines", "training_report", "signed_dc"];
@@ -178,12 +185,15 @@ interface Product {
 async function sendWorkflowEmail(targetRole: string, subject: string, html: string) {
   try {
     const { data: roles } = await supabase.from("user_roles").select("user_id").eq("role", targetRole as any);
-    if (!roles?.length) return;
+    if (!roles?.length) { console.log("No users with role:", targetRole); return; }
     const { data: profiles } = await supabase.from("profiles").select("email, first_name").in("id", roles.map(r => r.user_id));
-    for (const p of profiles ?? []) {
-      await supabase.functions.invoke("send-email", {
+    if (!profiles?.length) { console.log("No profiles found for role:", targetRole); return; }
+    for (const p of profiles) {
+      console.log("Sending workflow email to:", p.email);
+      const { error } = await supabase.functions.invoke("send-email", {
         body: { to: p.email, subject, html: html.replace("{{name}}", p.first_name) },
       });
+      if (error) console.error("Email send error:", error);
     }
   } catch (err) {
     console.error("Workflow email failed:", err);
@@ -202,13 +212,11 @@ export default function ProjectDetail() {
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [engineerLoading, setEngineerLoading] = useState(false);
 
-  // Edit project dialog
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editForm, setEditForm] = useState<any>({});
   const [products, setProducts] = useState<Product[]>([]);
   const [savingEdit, setSavingEdit] = useState(false);
 
-  // Daily updates state
   const [updates, setUpdates] = useState<DailyUpdate[]>([]);
   const [updateSummary, setUpdateSummary] = useState("");
   const [updateProgress, setUpdateProgress] = useState(0);
@@ -216,14 +224,12 @@ export default function ProjectDetail() {
   const [updateBlockers, setUpdateBlockers] = useState("");
   const [submittingUpdate, setSubmittingUpdate] = useState(false);
 
-  // Documents state
   const [documents, setDocuments] = useState<ProjectDocument[]>([]);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploadDocType, setUploadDocType] = useState("");
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
 
-  // Signature dialog state
   const [signDialogOpen, setSignDialogOpen] = useState(false);
   const [signingDoc, setSigningDoc] = useState<ProjectDocument | null>(null);
   const [signerName, setSignerName] = useState("");
@@ -232,36 +238,39 @@ export default function ProjectDetail() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [savingSignature, setSavingSignature] = useState(false);
 
-  // Status management state
   const [selectedStatus, setSelectedStatus] = useState("");
   const [statusNote, setStatusNote] = useState("");
   const [updatingStatus, setUpdatingStatus] = useState(false);
 
-  // Custom fields
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
   const [customValues, setCustomValues] = useState<Record<string, string>>({});
 
-  // Approval workflow state
   const [approving, setApproving] = useState(false);
 
-  // Determine which doc types the current user can upload
   const getUploadableDocTypes = () => {
     const types: { value: string; label: string }[] = [];
     if (isSales || isProjectManager) types.push(...SALES_DOC_TYPES);
     if (isAdminManager || isProjectManager) types.push(...ADMIN_MANAGER_DOC_TYPES);
     if (isEngineer || isProjectManager) types.push(...ENGINEER_DOC_TYPES);
     if (isProjectManager) types.push({ value: "other", label: "Other" });
-    // deduplicate
     const seen = new Set<string>();
     return types.filter(t => { if (seen.has(t.value)) return false; seen.add(t.value); return true; });
   };
 
-  // Can the current user edit the project?
   const canEdit = isProjectManager || isSales || isAdminManager;
   const canUploadDocs = isSales || isAdminManager || isEngineer || isProjectManager;
   const canManageStatus = isProjectManager;
   const canAssignEngineer = isProjectManager;
   const canSubmitUpdate = isEngineer || isProjectManager;
+
+  // Who can approve/reject a given document?
+  const canApproveDoc = (doc: ProjectDocument) => {
+    const dtype = doc.document_type ?? "";
+    // Sales docs -> approved by Sales Manager
+    if (SALES_DOC_TYPE_VALUES.includes(dtype)) return isSalesManager || isProjectManager;
+    // Admin/Engineer docs -> approved by PM
+    return isProjectManager;
+  };
 
   const fetchProject = async () => {
     if (!id) return;
@@ -355,19 +364,34 @@ export default function ProjectDetail() {
   const handleApproveWorkflow = async (nextStatus: string, emailRole: string, emailSubject: string) => {
     if (!id || !project) return;
     setApproving(true);
+
+    // For Sales Manager approving draft -> sales_approved:
+    // Check that all sales docs (SOW, MSA, Pre-install checklist) are approved first
+    if (project.status === "draft" && nextStatus === "sales_approved") {
+      const salesDocs = documents.filter(d => SALES_DOC_TYPE_VALUES.includes(d.document_type ?? ""));
+      const unapproved = salesDocs.filter(d => d.approval_status !== "approved");
+      if (unapproved.length > 0) {
+        toast.error("Please approve all Sales documents (SOW, MSA, Pre-Installation Checklist) before approving the project.");
+        setApproving(false);
+        return;
+      }
+    }
+
     const { error } = await supabase.from("projects").update({ status: nextStatus as any }).eq("id", id);
     if (error) { toast.error(error.message); setApproving(false); return; }
     toast.success(`Project approved! Status updated.`);
 
     // Send notification email to next role
-    await sendWorkflowEmail(
-      emailRole,
-      emailSubject.replace("{{project}}", project.name),
-      `<h2>Project Requires Your Attention</h2>
-       <p>Hi {{name}},</p>
-       <p>The project <strong>${project.name}</strong> for client <strong>${project.client_name}</strong> requires your review and approval.</p>
-       <p>Please log in to review the project details.</p>`
-    );
+    if (emailRole) {
+      await sendWorkflowEmail(
+        emailRole,
+        emailSubject.replace("{{project}}", project.name),
+        `<h2>Project Requires Your Attention</h2>
+         <p>Hi {{name}},</p>
+         <p>The project <strong>${project.name}</strong> for client <strong>${project.client_name}</strong> requires your review and approval.</p>
+         <p>Please log in to review the project details.</p>`
+      );
+    }
 
     setApproving(false);
     fetchProject();
@@ -488,13 +512,24 @@ export default function ProjectDetail() {
   };
 
   const handleViewDocument = async (doc: ProjectDocument) => {
+    // Pre-open blank window for Chrome compatibility
     const newWindow = window.open("", "_blank");
-    const { data } = await supabase.storage.from("documents").createSignedUrl(doc.file_url, 60);
-    if (data?.signedUrl && newWindow) {
-      newWindow.location.href = data.signedUrl;
-    } else {
+    try {
+      const { data, error } = await supabase.storage.from("documents").createSignedUrl(doc.file_url, 3600);
+      if (error || !data?.signedUrl) {
+        if (newWindow) newWindow.close();
+        toast.error("Could not generate download link: " + (error?.message || "Unknown error"));
+        return;
+      }
+      if (newWindow) {
+        newWindow.location.href = data.signedUrl;
+      } else {
+        // Fallback if popup was blocked
+        window.location.href = data.signedUrl;
+      }
+    } catch (err: any) {
       if (newWindow) newWindow.close();
-      toast.error("Could not generate download link.");
+      toast.error("Error viewing document: " + err.message);
     }
   };
 
@@ -572,24 +607,15 @@ export default function ProjectDetail() {
       fetchProject();
     }
 
-    // Notify project managers
-    try {
-      const { data: pmRoles } = await supabase.from("user_roles").select("user_id").eq("role", "project_manager" as any);
-      if (pmRoles?.length) {
-        const { data: pmProfiles } = await supabase.from("profiles").select("email, first_name").in("id", pmRoles.map(r => r.user_id));
-        for (const admin of pmProfiles ?? []) {
-          await supabase.functions.invoke("send-email", {
-            body: {
-              to: admin.email,
-              subject: `Client signed document on project: ${project?.name}`,
-              html: `<h2>Client Signature Received</h2><p>Hi ${admin.first_name},</p><p>Client <strong>${signerName}</strong> has signed the document <strong>${signingDoc.file_name}</strong> on project <strong>${project?.name}</strong>.</p><p>Please review and approve the document.</p>`,
-            },
-          });
-        }
-      }
-    } catch (emailErr) {
-      console.error("Admin notification email failed:", emailErr);
-    }
+    // Notify project managers about client signature
+    await sendWorkflowEmail(
+      "project_manager",
+      `Client signed document on project: ${project?.name}`,
+      `<h2>Client Signature Received</h2>
+       <p>Hi {{name}},</p>
+       <p>Client <strong>${signerName}</strong> has signed the document <strong>${signingDoc.file_name}</strong> on project <strong>${project?.name}</strong>.</p>
+       <p>Please review and approve the document.</p>`
+    );
 
     setSavingSignature(false); setSignDialogOpen(false); setSigningDoc(null); setSignerName(""); setHasSigned(false);
     clearSignature(); fetchDocuments();
@@ -618,11 +644,9 @@ export default function ProjectDetail() {
       product_version: project.product_version ?? "", num_users: project.num_users ?? "",
       num_channels: project.num_channels ?? "", trunk: project.trunk ?? "", location: project.location ?? "",
       priority: project.priority,
-      // SLA & AMC fields (Sales can edit)
       sla_period: project.sla_period ?? "", sla_start_date: project.sla_start_date ?? "",
       sla_end_date: project.sla_end_date ?? "", amc_start_date: project.amc_start_date ?? "",
       amc_end_date: project.amc_end_date ?? "",
-      // Admin Manager fields
       server_serial_number: project.server_serial_number ?? "",
       gw_sl_no: project.gw_sl_no ?? "", sl_no_remarks: project.sl_no_remarks ?? "",
     });
@@ -642,7 +666,6 @@ export default function ProjectDetail() {
 
     const updatePayload: any = {};
 
-    // PM can edit everything
     if (isProjectManager) {
       Object.assign(updatePayload, {
         name: editForm.name, client_name: editForm.client_name, client_email: editForm.client_email || null,
@@ -681,7 +704,6 @@ export default function ProjectDetail() {
     const { error } = await supabase.from("projects").update(updatePayload).eq("id", id);
     if (error) { toast.error(error.message); setSavingEdit(false); return; }
 
-    // Save custom field values (PM only)
     if (isProjectManager) {
       for (const field of customFields) {
         const val = customValues[field.id] ?? "";
@@ -745,7 +767,11 @@ export default function ProjectDetail() {
               <ShieldCheck className="h-5 w-5 text-primary" />
               <div>
                 <p className="text-sm font-medium">Approval Required</p>
-                <p className="text-xs text-muted-foreground">This project is awaiting your approval to proceed to the next stage.</p>
+                <p className="text-xs text-muted-foreground">
+                  {project.status === "draft" && isSalesManager
+                    ? "Please review and approve all Sales documents before approving this project."
+                    : "This project is awaiting your approval to proceed to the next stage."}
+                </p>
               </div>
             </div>
             <Button onClick={approvalAction.action} disabled={approving}>
@@ -755,12 +781,12 @@ export default function ProjectDetail() {
         </Card>
       )}
 
-      {/* Admin Manager: DC upload + serial numbers section during accounts_approved */}
+      {/* Admin Manager: DC/Gate Pass upload + serial numbers section during accounts_approved */}
       {project.status === "accounts_approved" && isAdminManager && (
         <Card className="border-primary/30 bg-primary/5">
-          <CardHeader><CardTitle className="text-base">Admin Review: Upload DC & Serial Numbers</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-base">Admin Review: Upload DC/Gate Pass & Serial Numbers</CardTitle></CardHeader>
           <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground">Please upload the DC document and fill in the serial numbers before approving.</p>
+            <p className="text-sm text-muted-foreground">Please upload the DC document and/or Gate Pass and fill in the serial numbers before approving.</p>
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="space-y-2"><Label>Server Serial Number</Label><Input value={editForm.server_serial_number || project.server_serial_number || ""} onChange={(e) => setEditForm({ ...editForm, server_serial_number: e.target.value })} /></div>
               <div className="space-y-2"><Label>GW SL No</Label><Input value={editForm.gw_sl_no || project.gw_sl_no || ""} onChange={(e) => setEditForm({ ...editForm, gw_sl_no: e.target.value })} /></div>
@@ -843,7 +869,6 @@ export default function ProjectDetail() {
             </Card>
           )}
 
-          {/* SLA & AMC Details */}
           {(project.sla_period || project.sla_start_date || project.sla_end_date || project.amc_start_date || project.amc_end_date) && (
             <Card>
               <CardHeader><CardTitle className="text-base">SLA & AMC Details</CardTitle></CardHeader>
@@ -859,7 +884,6 @@ export default function ProjectDetail() {
             </Card>
           )}
 
-          {/* Serial Numbers (Admin Manager fields) */}
           {(project.server_serial_number || project.gw_sl_no || project.sl_no_remarks) && (
             <Card>
               <CardHeader><CardTitle className="text-base">Hardware Details</CardTitle></CardHeader>
@@ -873,7 +897,6 @@ export default function ProjectDetail() {
             </Card>
           )}
 
-          {/* Custom fields display */}
           {customFields.length > 0 && (
             <Card>
               <CardHeader><CardTitle className="text-base">Additional Fields</CardTitle></CardHeader>
@@ -988,6 +1011,7 @@ export default function ProjectDetail() {
                     const isOwn = doc.uploaded_by === user?.id;
                     const docTypeLabel = ALL_DOC_TYPES.find(t => t.value === doc.document_type)?.label ?? doc.document_type ?? "—";
                     const isSignable = CLIENT_SIGNABLE_TYPES.includes(doc.document_type ?? "");
+                    const showApproveReject = canApproveDoc(doc) && doc.approval_status === "pending";
                     return (
                       <TableRow key={doc.id}>
                         <TableCell className="font-medium text-sm max-w-[200px] truncate" title={doc.file_name}>{doc.file_name}</TableCell>
@@ -1012,13 +1036,14 @@ export default function ProjectDetail() {
                         <TableCell>
                           <div className="flex items-center justify-end gap-1">
                             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleViewDocument(doc)} title="View"><Eye className="h-3.5 w-3.5" /></Button>
-                            {doc.signing_token && !doc.signed_at && (
+                            {/* Copy signing link - available anytime for signable docs with a token */}
+                            {doc.signing_token && isSignable && (
                               <Button variant="ghost" size="icon" className="h-7 w-7 text-info" onClick={() => copySigningLink(doc)} title="Copy Signing Link"><Copy className="h-3.5 w-3.5" /></Button>
                             )}
                             {isSignable && !doc.signed_at && (isProjectManager || isOwn) && (
                               <Button variant="ghost" size="icon" className="h-7 w-7 text-primary" onClick={() => { setSigningDoc(doc); setSignerName(""); setSignDialogOpen(true); }} title="Get Signed"><PenTool className="h-3.5 w-3.5" /></Button>
                             )}
-                            {isProjectManager && (
+                            {showApproveReject && (
                               <>
                                 <Button variant="ghost" size="icon" className="h-7 w-7 text-success" onClick={() => handleApproveReject(doc.id, "approved")} title="Approve"><CheckCircle className="h-3.5 w-3.5" /></Button>
                                 <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleApproveReject(doc.id, "rejected")} title="Reject"><XCircle className="h-3.5 w-3.5" /></Button>
@@ -1159,7 +1184,6 @@ export default function ProjectDetail() {
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Edit Project</DialogTitle></DialogHeader>
           <div className="space-y-4">
-            {/* Common fields - Sales & PM */}
             {(isSales || isProjectManager) && (
               <>
                 <div className="space-y-2"><Label>Project Name *</Label><Input value={editForm.name || ""} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} /></div>
@@ -1229,7 +1253,6 @@ export default function ProjectDetail() {
               </>
             )}
 
-            {/* Admin Manager fields */}
             {(isAdminManager || isProjectManager) && (
               <>
                 <Separator />
@@ -1242,19 +1265,15 @@ export default function ProjectDetail() {
               </>
             )}
 
-            {/* Custom fields (PM only) */}
+            {/* Custom Fields (PM only) */}
             {isProjectManager && customFields.length > 0 && (
               <>
                 <Separator />
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Custom Fields</p>
                 {customFields.map(f => (
                   <div key={f.id} className="space-y-2">
-                    <Label>{f.field_name}{f.is_required && " *"}</Label>
-                    <Input
-                      type={f.field_type === "number" ? "number" : f.field_type === "date" ? "date" : "text"}
-                      value={customValues[f.id] || ""}
-                      onChange={(e) => setCustomValues({ ...customValues, [f.id]: e.target.value })}
-                    />
+                    <Label>{f.field_name}{f.is_required ? " *" : ""}</Label>
+                    <Input value={customValues[f.id] || ""} onChange={(e) => setCustomValues(prev => ({ ...prev, [f.id]: e.target.value }))} />
                   </div>
                 ))}
               </>
