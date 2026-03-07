@@ -116,11 +116,10 @@ serve(async (req) => {
       .limit(1);
     if (!roleCheck || roleCheck.length === 0) throw new Error("Only users with roles can send emails");
 
-    const { to, subject, html } = await req.json();
-    if (!to || !subject || !html) throw new Error("to, subject, and html are required");
+    const body = await req.json();
+    const { to, subject, html, target_role } = body;
 
-    console.log("Sending email to:", to, "Subject:", subject);
-
+    // Get SMTP settings
     const { data: smtp, error: smtpError } = await supabaseAdmin
       .from("smtp_settings")
       .select("*")
@@ -133,6 +132,63 @@ serve(async (req) => {
       throw new Error("SMTP settings not configured. Please configure in Settings → SMTP.");
     }
 
+    // If target_role is provided, look up recipients by role (bypasses RLS via service role)
+    if (target_role) {
+      if (!subject || !html) throw new Error("subject and html are required");
+      
+      console.log("Looking up users with role:", target_role);
+      const { data: roleUsers, error: roleError } = await supabaseAdmin
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", target_role);
+      
+      if (roleError) {
+        console.error("Error looking up role users:", roleError.message);
+        throw new Error("Failed to find users with role: " + target_role);
+      }
+      
+      if (!roleUsers || roleUsers.length === 0) {
+        console.log("No users found with role:", target_role);
+        return new Response(
+          JSON.stringify({ success: true, message: "No users with that role" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+        );
+      }
+
+      const userIds = roleUsers.map(r => r.user_id);
+      const { data: profiles, error: profError } = await supabaseAdmin
+        .from("profiles")
+        .select("email, first_name")
+        .in("id", userIds);
+
+      if (profError || !profiles?.length) {
+        console.log("No profiles found for role users");
+        return new Response(
+          JSON.stringify({ success: true, message: "No profiles found for role" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+        );
+      }
+
+      console.log(`Sending email to ${profiles.length} users with role ${target_role}`);
+      for (const p of profiles) {
+        const personalizedHtml = html.replace(/\{\{name\}\}/g, p.first_name || "");
+        try {
+          await sendViaSMTP(smtp, p.email, subject, personalizedHtml);
+        } catch (err) {
+          console.error(`Failed to send to ${p.email}:`, err.message);
+        }
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, sent_to: profiles.length }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+      );
+    }
+
+    // Direct send mode - to, subject, html required
+    if (!to || !subject || !html) throw new Error("to, subject, and html are required");
+
+    console.log("Sending email to:", to, "Subject:", subject);
     await sendViaSMTP(smtp, to, subject, html);
 
     return new Response(
