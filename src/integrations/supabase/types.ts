@@ -460,6 +460,30 @@ export type Database = {
           },
         ]
       }
+      reporting_managers: {
+        Row: {
+          created_at: string
+          id: string
+          manager_id: string
+          relationship_type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          manager_id: string
+          relationship_type: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          manager_id?: string
+          relationship_type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       smtp_settings: {
         Row: {
           from_email: string | null
