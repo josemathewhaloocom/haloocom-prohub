@@ -181,20 +181,14 @@ interface Product {
   name: string;
 }
 
-// Helper to send workflow notification emails
+// Helper to send workflow notification emails via edge function (bypasses RLS)
 async function sendWorkflowEmail(targetRole: string, subject: string, html: string) {
   try {
-    const { data: roles } = await supabase.from("user_roles").select("user_id").eq("role", targetRole as any);
-    if (!roles?.length) { console.log("No users with role:", targetRole); return; }
-    const { data: profiles } = await supabase.from("profiles").select("email, first_name").in("id", roles.map(r => r.user_id));
-    if (!profiles?.length) { console.log("No profiles found for role:", targetRole); return; }
-    for (const p of profiles) {
-      console.log("Sending workflow email to:", p.email);
-      const { error } = await supabase.functions.invoke("send-email", {
-        body: { to: p.email, subject, html: html.replace("{{name}}", p.first_name) },
-      });
-      if (error) console.error("Email send error:", error);
-    }
+    console.log("Sending workflow email to role:", targetRole);
+    const { error } = await supabase.functions.invoke("send-email", {
+      body: { target_role: targetRole, subject, html },
+    });
+    if (error) console.error("Email send error:", error);
   } catch (err) {
     console.error("Workflow email failed:", err);
   }
