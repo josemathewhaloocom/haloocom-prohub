@@ -14,6 +14,8 @@ import SettingsPage from "@/pages/SettingsPage";
 import ProjectDetail from "@/pages/ProjectDetail";
 import DailyUpdates from "@/pages/DailyUpdates";
 import UsersPage from "@/pages/UsersPage";
+import SupportTickets from "@/pages/SupportTickets";
+import TicketReports from "@/pages/TicketReports";
 import NotFound from "./pages/NotFound";
 import PublicSign from "./pages/PublicSign";
 
