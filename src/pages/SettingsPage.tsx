@@ -63,6 +63,13 @@ export default function SettingsPage() {
   const [newFieldRequired, setNewFieldRequired] = useState(false);
   const [addingField, setAddingField] = useState(false);
 
+  // Ticket config state
+  const [ticketConfigs, setTicketConfigs] = useState<TicketConfigItem[]>([]);
+  const [selectedConfigField, setSelectedConfigField] = useState("status");
+  const [newConfigValue, setNewConfigValue] = useState("");
+  const [newConfigParent, setNewConfigParent] = useState("");
+  const [addingConfig, setAddingConfig] = useState(false);
+
   const handleSave = async () => {
     if (!user) return;
     setSaving(true);
