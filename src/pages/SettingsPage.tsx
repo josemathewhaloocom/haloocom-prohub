@@ -26,6 +26,20 @@ interface CustomField {
   is_required: boolean; sort_order: number;
 }
 
+interface TicketConfigItem {
+  id: string; field_name: string; field_value: string;
+  parent_value: string | null; sort_order: number; is_active: boolean;
+}
+
+const TICKET_CONFIG_FIELDS = [
+  { key: "status", label: "Status" },
+  { key: "department", label: "Department" },
+  { key: "issue_reported_via", label: "Issue Reported Via" },
+  { key: "case_type", label: "Case Type" },
+  { key: "category", label: "Category" },
+  { key: "sub_category", label: "Sub Category" },
+];
+
 export default function SettingsPage() {
   const { user, isProjectManager } = useAuth();
   const [firstName, setFirstName] = useState("");
