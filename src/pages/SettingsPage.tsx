@@ -10,7 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Trash2, PackageOpen, Mail, Settings2 } from "lucide-react";
+import { Plus, Trash2, PackageOpen, Mail, Settings2, Headset } from "lucide-react";
 import { toast } from "sonner";
 
 interface SmtpSettings {
@@ -25,6 +25,20 @@ interface CustomField {
   id: string; field_name: string; field_type: string;
   is_required: boolean; sort_order: number;
 }
+
+interface TicketConfigItem {
+  id: string; field_name: string; field_value: string;
+  parent_value: string | null; sort_order: number; is_active: boolean;
+}
+
+const TICKET_CONFIG_FIELDS = [
+  { key: "status", label: "Status" },
+  { key: "department", label: "Department" },
+  { key: "issue_reported_via", label: "Issue Reported Via" },
+  { key: "case_type", label: "Case Type" },
+  { key: "category", label: "Category" },
+  { key: "sub_category", label: "Sub Category" },
+];
 
 export default function SettingsPage() {
   const { user, isProjectManager } = useAuth();
@@ -48,6 +62,13 @@ export default function SettingsPage() {
   const [newFieldType, setNewFieldType] = useState("text");
   const [newFieldRequired, setNewFieldRequired] = useState(false);
   const [addingField, setAddingField] = useState(false);
+
+  // Ticket config state
+  const [ticketConfigs, setTicketConfigs] = useState<TicketConfigItem[]>([]);
+  const [selectedConfigField, setSelectedConfigField] = useState("status");
+  const [newConfigValue, setNewConfigValue] = useState("");
+  const [newConfigParent, setNewConfigParent] = useState("");
+  const [addingConfig, setAddingConfig] = useState(false);
 
   const handleSave = async () => {
     if (!user) return;
@@ -129,8 +150,48 @@ export default function SettingsPage() {
     else { toast.success("Field removed."); fetchCustomFields(); }
   };
 
+  const fetchTicketConfigs = async () => {
+    const { data } = await supabase.from("support_ticket_config" as any).select("*").order("sort_order");
+    setTicketConfigs((data as any) ?? []);
+  };
+
+  const handleAddConfig = async () => {
+    if (!newConfigValue.trim()) return;
+    setAddingConfig(true);
+    const existing = ticketConfigs.filter(c => c.field_name === selectedConfigField);
+    const maxSort = existing.length ? Math.max(...existing.map(c => c.sort_order)) + 1 : 0;
+    const payload: any = {
+      field_name: selectedConfigField,
+      field_value: newConfigValue.trim(),
+      sort_order: maxSort,
+      created_by: user?.id,
+    };
+    if (selectedConfigField === "sub_category" && newConfigParent) {
+      payload.parent_value = newConfigParent;
+    }
+    const { error } = await supabase.from("support_ticket_config" as any).insert(payload);
+    if (error) toast.error(error.message);
+    else { toast.success("Value added!"); setNewConfigValue(""); setNewConfigParent(""); fetchTicketConfigs(); }
+    setAddingConfig(false);
+  };
+
+  const handleDeleteConfig = async (id: string) => {
+    const { error } = await supabase.from("support_ticket_config" as any).delete().eq("id", id);
+    if (error) toast.error(error.message);
+    else { toast.success("Value removed."); fetchTicketConfigs(); }
+  };
+
+  const handleToggleConfig = async (item: TicketConfigItem) => {
+    const { error } = await supabase.from("support_ticket_config" as any).update({ is_active: !item.is_active }).eq("id", item.id);
+    if (error) toast.error(error.message);
+    else fetchTicketConfigs();
+  };
+
+  const filteredConfigs = ticketConfigs.filter(c => c.field_name === selectedConfigField);
+  const categories = ticketConfigs.filter(c => c.field_name === "category" && c.is_active);
+
   useEffect(() => {
-    if (isProjectManager) { fetchProducts(); fetchSmtpSettings(); fetchCustomFields(); }
+    if (isProjectManager) { fetchProducts(); fetchSmtpSettings(); fetchCustomFields(); fetchTicketConfigs(); }
   }, [isProjectManager]);
 
   return (
@@ -259,6 +320,71 @@ export default function SettingsPage() {
                   ))}
                 </TableBody>
               </Table>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {isProjectManager && (
+        <Card className="max-w-2xl">
+          <CardHeader>
+            <div className="flex items-center gap-2"><Headset className="h-4 w-4 text-muted-foreground" /><CardTitle className="text-base">Support Ticket Dropdown Configuration</CardTitle></div>
+            <CardDescription>Manage dropdown values for support ticket fields.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Select value={selectedConfigField} onValueChange={setSelectedConfigField}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {TICKET_CONFIG_FIELDS.map(f => (
+                  <SelectItem key={f.key} value={f.key}>{f.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <div className="flex gap-2">
+              <Input placeholder="New value..." value={newConfigValue} onChange={e => setNewConfigValue(e.target.value)} onKeyDown={e => e.key === "Enter" && handleAddConfig()} />
+              {selectedConfigField === "sub_category" && (
+                <Select value={newConfigParent} onValueChange={setNewConfigParent}>
+                  <SelectTrigger className="w-[160px]"><SelectValue placeholder="Parent category" /></SelectTrigger>
+                  <SelectContent>
+                    {categories.map(c => <SelectItem key={c.id} value={c.field_value}>{c.field_value}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              )}
+              <Button onClick={handleAddConfig} disabled={addingConfig || !newConfigValue.trim()}><Plus className="h-4 w-4 mr-1" /> Add</Button>
+            </div>
+
+            <Separator />
+
+            {filteredConfigs.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">No values configured for this field.</p>
+            ) : (
+              <ul className="space-y-2">
+                {filteredConfigs.map(item => (
+                  <li key={item.id} className="flex items-center justify-between gap-2 rounded-md border px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      <span className={`text-sm font-medium ${!item.is_active ? "text-muted-foreground line-through" : ""}`}>
+                        {item.field_value}
+                      </span>
+                      {item.parent_value && (
+                        <Badge variant="outline" className="text-xs">Parent: {item.parent_value}</Badge>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge
+                        variant="outline"
+                        className={`cursor-pointer text-xs ${item.is_active ? "border-green-500/40 text-green-600 bg-green-500/10" : "border-muted text-muted-foreground"}`}
+                        onClick={() => handleToggleConfig(item)}
+                      >
+                        {item.is_active ? "Active" : "Inactive"}
+                      </Badge>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDeleteConfig(item.id)}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
             )}
           </CardContent>
         </Card>
