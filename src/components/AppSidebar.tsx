@@ -33,6 +33,8 @@ export default function AppSidebar() {
     { to: "/engineers", label: "Engineers", icon: Users, visible: isProjectManager },
     { to: "/updates", label: "Daily Updates", icon: ClipboardList, visible: isProjectManager || isEngineer },
     { to: "/documents", label: "Documents", icon: FileText, visible: true },
+    { to: "/tickets", label: "Support Tickets", icon: Headset, visible: isProjectManager || isEngineer },
+    { to: "/ticket-reports", label: "Ticket Reports", icon: BarChart3, visible: isProjectManager },
     { to: "/users", label: "Users", icon: UserCog, visible: isProjectManager },
     { to: "/settings", label: "Settings", icon: Settings, visible: isProjectManager },
   ];
