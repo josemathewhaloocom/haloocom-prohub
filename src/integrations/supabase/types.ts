@@ -526,6 +526,184 @@ export type Database = {
         }
         Relationships: []
       }
+      support_ticket_config: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          field_name: string
+          field_value: string
+          id: string
+          is_active: boolean
+          parent_value: string | null
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          field_name: string
+          field_value: string
+          id?: string
+          is_active?: boolean
+          parent_value?: string | null
+          sort_order?: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          field_name?: string
+          field_value?: string
+          id?: string
+          is_active?: boolean
+          parent_value?: string | null
+          sort_order?: number
+        }
+        Relationships: []
+      }
+      support_ticket_logs: {
+        Row: {
+          changed_at: string
+          changed_by: string
+          field_name: string
+          id: string
+          new_value: string | null
+          old_value: string | null
+          ticket_id: string
+        }
+        Insert: {
+          changed_at?: string
+          changed_by: string
+          field_name: string
+          id?: string
+          new_value?: string | null
+          old_value?: string | null
+          ticket_id: string
+        }
+        Update: {
+          changed_at?: string
+          changed_by?: string
+          field_name?: string
+          id?: string
+          new_value?: string | null
+          old_value?: string | null
+          ticket_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_ticket_logs_changed_by_fkey"
+            columns: ["changed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "support_ticket_logs_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "support_tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      support_tickets: {
+        Row: {
+          admin_email: string | null
+          assigned_engineer_id: string | null
+          case_type: string
+          category: string
+          client_email: string | null
+          client_name: string
+          closed_at: string | null
+          created_at: string
+          created_by: string
+          department: string
+          description: string | null
+          id: string
+          issue_reported_via: string
+          priority: string
+          product_name: string | null
+          project_id: string
+          report_file_url: string | null
+          resolution: string | null
+          status: string
+          sub_category: string | null
+          subject: string
+          ticket_id: string
+          updated_at: string
+        }
+        Insert: {
+          admin_email?: string | null
+          assigned_engineer_id?: string | null
+          case_type: string
+          category: string
+          client_email?: string | null
+          client_name: string
+          closed_at?: string | null
+          created_at?: string
+          created_by: string
+          department: string
+          description?: string | null
+          id?: string
+          issue_reported_via: string
+          priority?: string
+          product_name?: string | null
+          project_id: string
+          report_file_url?: string | null
+          resolution?: string | null
+          status?: string
+          sub_category?: string | null
+          subject: string
+          ticket_id?: string
+          updated_at?: string
+        }
+        Update: {
+          admin_email?: string | null
+          assigned_engineer_id?: string | null
+          case_type?: string
+          category?: string
+          client_email?: string | null
+          client_name?: string
+          closed_at?: string | null
+          created_at?: string
+          created_by?: string
+          department?: string
+          description?: string | null
+          id?: string
+          issue_reported_via?: string
+          priority?: string
+          product_name?: string | null
+          project_id?: string
+          report_file_url?: string | null
+          resolution?: string | null
+          status?: string
+          sub_category?: string | null
+          subject?: string
+          ticket_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_tickets_assigned_engineer_id_fkey"
+            columns: ["assigned_engineer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "support_tickets_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "support_tickets_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           id: string
