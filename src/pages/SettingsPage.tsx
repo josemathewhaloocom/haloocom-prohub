@@ -150,8 +150,48 @@ export default function SettingsPage() {
     else { toast.success("Field removed."); fetchCustomFields(); }
   };
 
+  const fetchTicketConfigs = async () => {
+    const { data } = await supabase.from("support_ticket_config" as any).select("*").order("sort_order");
+    setTicketConfigs((data as any) ?? []);
+  };
+
+  const handleAddConfig = async () => {
+    if (!newConfigValue.trim()) return;
+    setAddingConfig(true);
+    const existing = ticketConfigs.filter(c => c.field_name === selectedConfigField);
+    const maxSort = existing.length ? Math.max(...existing.map(c => c.sort_order)) + 1 : 0;
+    const payload: any = {
+      field_name: selectedConfigField,
+      field_value: newConfigValue.trim(),
+      sort_order: maxSort,
+      created_by: user?.id,
+    };
+    if (selectedConfigField === "sub_category" && newConfigParent) {
+      payload.parent_value = newConfigParent;
+    }
+    const { error } = await supabase.from("support_ticket_config" as any).insert(payload);
+    if (error) toast.error(error.message);
+    else { toast.success("Value added!"); setNewConfigValue(""); setNewConfigParent(""); fetchTicketConfigs(); }
+    setAddingConfig(false);
+  };
+
+  const handleDeleteConfig = async (id: string) => {
+    const { error } = await supabase.from("support_ticket_config" as any).delete().eq("id", id);
+    if (error) toast.error(error.message);
+    else { toast.success("Value removed."); fetchTicketConfigs(); }
+  };
+
+  const handleToggleConfig = async (item: TicketConfigItem) => {
+    const { error } = await supabase.from("support_ticket_config" as any).update({ is_active: !item.is_active }).eq("id", item.id);
+    if (error) toast.error(error.message);
+    else fetchTicketConfigs();
+  };
+
+  const filteredConfigs = ticketConfigs.filter(c => c.field_name === selectedConfigField);
+  const categories = ticketConfigs.filter(c => c.field_name === "category" && c.is_active);
+
   useEffect(() => {
-    if (isProjectManager) { fetchProducts(); fetchSmtpSettings(); fetchCustomFields(); }
+    if (isProjectManager) { fetchProducts(); fetchSmtpSettings(); fetchCustomFields(); fetchTicketConfigs(); }
   }, [isProjectManager]);
 
   return (
