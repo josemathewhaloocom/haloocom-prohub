@@ -324,6 +324,71 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
       )}
+
+      {isProjectManager && (
+        <Card className="max-w-2xl">
+          <CardHeader>
+            <div className="flex items-center gap-2"><Headset className="h-4 w-4 text-muted-foreground" /><CardTitle className="text-base">Support Ticket Dropdown Configuration</CardTitle></div>
+            <CardDescription>Manage dropdown values for support ticket fields.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Select value={selectedConfigField} onValueChange={setSelectedConfigField}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {TICKET_CONFIG_FIELDS.map(f => (
+                  <SelectItem key={f.key} value={f.key}>{f.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <div className="flex gap-2">
+              <Input placeholder="New value..." value={newConfigValue} onChange={e => setNewConfigValue(e.target.value)} onKeyDown={e => e.key === "Enter" && handleAddConfig()} />
+              {selectedConfigField === "sub_category" && (
+                <Select value={newConfigParent} onValueChange={setNewConfigParent}>
+                  <SelectTrigger className="w-[160px]"><SelectValue placeholder="Parent category" /></SelectTrigger>
+                  <SelectContent>
+                    {categories.map(c => <SelectItem key={c.id} value={c.field_value}>{c.field_value}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              )}
+              <Button onClick={handleAddConfig} disabled={addingConfig || !newConfigValue.trim()}><Plus className="h-4 w-4 mr-1" /> Add</Button>
+            </div>
+
+            <Separator />
+
+            {filteredConfigs.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">No values configured for this field.</p>
+            ) : (
+              <ul className="space-y-2">
+                {filteredConfigs.map(item => (
+                  <li key={item.id} className="flex items-center justify-between gap-2 rounded-md border px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      <span className={`text-sm font-medium ${!item.is_active ? "text-muted-foreground line-through" : ""}`}>
+                        {item.field_value}
+                      </span>
+                      {item.parent_value && (
+                        <Badge variant="outline" className="text-xs">Parent: {item.parent_value}</Badge>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge
+                        variant="outline"
+                        className={`cursor-pointer text-xs ${item.is_active ? "border-green-500/40 text-green-600 bg-green-500/10" : "border-muted text-muted-foreground"}`}
+                        onClick={() => handleToggleConfig(item)}
+                      >
+                        {item.is_active ? "Active" : "Inactive"}
+                      </Badge>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDeleteConfig(item.id)}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
