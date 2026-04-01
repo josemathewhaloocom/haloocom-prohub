@@ -1,7 +1,7 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,7 +15,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import {
   Plus, Search, Trash2, Pencil, Eye, Upload, Clock, FileText,
-  AlertTriangle, ChevronDown, ChevronUp,
+  AlertTriangle, TicketIcon, X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -48,6 +48,7 @@ interface ProjectOption {
   id: string; name: string; client_name: string;
   client_email: string | null; product_name: string | null;
   admin_email: string | null;
+  sla_end_date: string | null; purchase_type: string | null;
 }
 
 interface EngineerOption { id: string; first_name: string; last_name: string; email: string; }
@@ -76,8 +77,10 @@ const emptyForm = {
 };
 
 export default function SupportTickets() {
-  const { user, isProjectManager, isEngineer } = useAuth();
-  const canCreate = isProjectManager || isEngineer;
+  const { user, isProjectManager, isEngineer, roles } = useAuth();
+  const isSupportManager = roles.includes("support_manager" as any);
+  const canCreate = isProjectManager || isEngineer || isSupportManager;
+  const canDelete = isProjectManager || isSupportManager;
 
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [configs, setConfigs] = useState<TicketConfig[]>([]);
@@ -99,7 +102,11 @@ export default function SupportTickets() {
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterPriority, setFilterPriority] = useState("all");
+
+  // Project search state
   const [projectSearch, setProjectSearch] = useState("");
+  const [projectDropdownOpen, setProjectDropdownOpen] = useState(false);
+  const projectSearchRef = useRef<HTMLDivElement>(null);
 
   const getOptions = (fieldName: string) =>
     configs.filter(c => c.field_name === fieldName && c.is_active).sort((a, b) => a.sort_order - b.sort_order);
@@ -114,7 +121,7 @@ export default function SupportTickets() {
     const [ticketRes, configRes, projectRes, engRes, profileRes] = await Promise.all([
       supabase.from("support_tickets" as any).select("*").order("created_at", { ascending: false }),
       supabase.from("support_ticket_config" as any).select("*").order("sort_order"),
-      supabase.from("projects").select("id, name, client_name, client_email, product_id").order("name"),
+      supabase.from("projects").select("id, name, client_name, client_email, product_id, sla_end_date, purchase_type").order("name"),
       supabase.from("profiles").select("id, first_name, last_name, email"),
       supabase.from("profiles").select("id, first_name, last_name"),
     ]);
@@ -122,7 +129,6 @@ export default function SupportTickets() {
     setTickets((ticketRes.data as any) ?? []);
     setConfigs((configRes.data as any) ?? []);
 
-    // Enrich projects with product names
     const rawProjects = (projectRes.data ?? []) as any[];
     const productIds = [...new Set(rawProjects.map(p => p.product_id).filter(Boolean))];
     let productMap: Record<string, string> = {};
@@ -135,6 +141,8 @@ export default function SupportTickets() {
       client_email: p.client_email,
       product_name: p.product_id ? (productMap[p.product_id] || "") : "",
       admin_email: p.client_email,
+      sla_end_date: p.sla_end_date,
+      purchase_type: p.purchase_type,
     })));
 
     const engs = (engRes.data ?? []) as any[];
@@ -149,35 +157,61 @@ export default function SupportTickets() {
 
   useEffect(() => { fetchAll(); }, []);
 
+  // Close project dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (projectSearchRef.current && !projectSearchRef.current.contains(e.target as Node)) {
+        setProjectDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
   const filteredProjects = useMemo(() => {
-    if (!projectSearch) return projects;
+    if (!projectSearch) return projects.slice(0, 20);
     const q = projectSearch.toLowerCase();
-    return projects.filter(p => p.name.toLowerCase().includes(q) || p.client_name.toLowerCase().includes(q));
+    return projects.filter(p =>
+      p.name.toLowerCase().includes(q) ||
+      p.client_name.toLowerCase().includes(q)
+    ).slice(0, 20);
   }, [projects, projectSearch]);
 
-  const onProjectSelect = (projectId: string) => {
-    const proj = projects.find(p => p.id === projectId);
-    if (proj) {
-      setForm(f => ({
-        ...f,
-        project_id: proj.id,
-        client_name: proj.client_name,
-        client_email: proj.client_email || "",
-        product_name: proj.product_name || "",
-        admin_email: proj.admin_email || "",
-      }));
+  const selectedProject = useMemo(() => projects.find(p => p.id === form.project_id), [projects, form.project_id]);
+
+  const onProjectSelect = (proj: ProjectOption) => {
+    // Check SLA validity - Rental projects don't need SLA check
+    if (proj.purchase_type !== "Rental" && proj.sla_end_date) {
+      const slaEnd = new Date(proj.sla_end_date);
+      if (slaEnd < new Date()) {
+        toast.error(`Cannot create ticket: SLA expired on ${format(slaEnd, "dd MMM yyyy")} for this client.`);
+        return;
+      }
     }
+    setForm(f => ({
+      ...f,
+      project_id: proj.id,
+      client_name: proj.client_name,
+      client_email: proj.client_email || "",
+      product_name: proj.product_name || "",
+      admin_email: proj.admin_email || "",
+    }));
+    setProjectSearch(proj.name + " — " + proj.client_name);
+    setProjectDropdownOpen(false);
   };
 
   const openCreate = () => {
     setEditingTicket(null);
     setForm({ ...emptyForm, assigned_engineer_id: user?.id || "" });
+    setProjectSearch("");
     setReportFile(null);
     setDialogOpen(true);
   };
 
   const openEdit = (ticket: Ticket) => {
     setEditingTicket(ticket);
+    const proj = projects.find(p => p.id === ticket.project_id);
+    setProjectSearch(proj ? `${proj.name} — ${proj.client_name}` : "");
     setForm({
       project_id: ticket.project_id,
       client_name: ticket.client_name,
@@ -236,9 +270,20 @@ export default function SupportTickets() {
   };
 
   const handleSubmit = async () => {
-    if (!form.project_id || !form.subject || !form.department || !form.issue_reported_via ||
-      !form.case_type || !form.category || !form.priority || !form.status || !form.client_name || !form.client_email) {
-      toast.error("Please fill all mandatory fields.");
+    const missing: string[] = [];
+    if (!form.project_id) missing.push("Project");
+    if (!form.subject) missing.push("Subject");
+    if (!form.department) missing.push("Department");
+    if (!form.issue_reported_via) missing.push("Issue Reported Via");
+    if (!form.case_type) missing.push("Case Type");
+    if (!form.category) missing.push("Category");
+    if (!form.priority) missing.push("Priority");
+    if (!form.status) missing.push("Status");
+    if (!form.client_name) missing.push("Client Name");
+    if (!form.client_email) missing.push("Client Email");
+
+    if (missing.length) {
+      toast.error(`Missing required fields: ${missing.join(", ")}`);
       return;
     }
     if (form.case_type === "Health Checkup" && !editingTicket?.report_file_url && !reportFile) {
@@ -249,7 +294,6 @@ export default function SupportTickets() {
     setSaving(true);
     let reportUrl = editingTicket?.report_file_url || null;
 
-    // Upload report file if present
     if (reportFile) {
       const ext = reportFile.name.split(".").pop();
       const path = `${crypto.randomUUID()}.${ext}`;
@@ -279,7 +323,6 @@ export default function SupportTickets() {
     };
 
     if (editingTicket) {
-      // Check if status changed to Closed
       if (form.status === "Closed" && editingTicket.status !== "Closed") {
         payload.closed_at = new Date().toISOString();
       }
@@ -292,7 +335,6 @@ export default function SupportTickets() {
       if (!payload.assigned_engineer_id) payload.assigned_engineer_id = user?.id;
       const { data, error } = await supabase.from("support_tickets" as any).insert(payload).select().single();
       if (error) { toast.error(error.message); setSaving(false); return; }
-      // Log creation
       if (data && user) {
         await supabase.from("support_ticket_logs" as any).insert({
           ticket_id: (data as any).id, field_name: "created", old_value: null,
@@ -328,23 +370,58 @@ export default function SupportTickets() {
     return m;
   }, [projects]);
 
+  // Stats
+  const stats = useMemo(() => {
+    const open = tickets.filter(t => t.status === "Open").length;
+    const inProgress = tickets.filter(t => t.status === "In-progress").length;
+    const closed = tickets.filter(t => t.status === "Closed").length;
+    const critical = tickets.filter(t => t.priority === "Critical" && t.status !== "Closed").length;
+    return { open, inProgress, closed, critical, total: tickets.length };
+  }, [tickets]);
+
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Support Tickets</h1>
-          <p className="text-muted-foreground">Create and track customer issues.</p>
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+            <TicketIcon className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Support Tickets</h1>
+            <p className="text-sm text-muted-foreground">Create and track customer issues</p>
+          </div>
         </div>
         {canCreate && (
-          <Button onClick={openCreate}><Plus className="h-4 w-4 mr-1" /> New Ticket</Button>
+          <Button onClick={openCreate} size="lg" className="gap-2">
+            <Plus className="h-4 w-4" /> New Ticket
+          </Button>
         )}
+      </div>
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        {[
+          { label: "Total", value: stats.total, color: "text-foreground" },
+          { label: "Open", value: stats.open, color: "text-blue-600" },
+          { label: "In Progress", value: stats.inProgress, color: "text-primary" },
+          { label: "Closed", value: stats.closed, color: "text-muted-foreground" },
+          { label: "Critical", value: stats.critical, color: "text-destructive" },
+        ].map(s => (
+          <Card key={s.label}>
+            <CardContent className="pt-4 pb-3 px-4">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{s.label}</p>
+              <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       {/* Filters */}
       <Card>
-        <CardContent className="pt-4">
-          <div className="flex flex-wrap gap-3">
-            <div className="relative flex-1 min-w-[200px]">
+        <CardContent className="pt-4 pb-4">
+          <div className="flex flex-wrap gap-3 items-center">
+            <div className="relative flex-1 min-w-[220px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input placeholder="Search ticket ID, subject, client..." className="pl-9" value={search} onChange={e => setSearch(e.target.value)} />
             </div>
@@ -370,60 +447,67 @@ export default function SupportTickets() {
       <Card>
         <CardContent className="p-0">
           {loading ? (
-            <p className="text-center py-8 text-muted-foreground">Loading...</p>
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-pulse text-muted-foreground">Loading tickets...</div>
+            </div>
           ) : filtered.length === 0 ? (
-            <p className="text-center py-8 text-muted-foreground">No tickets found.</p>
+            <div className="flex flex-col items-center justify-center py-12 gap-2">
+              <TicketIcon className="h-10 w-10 text-muted-foreground/40" />
+              <p className="text-muted-foreground">No tickets found</p>
+            </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Ticket ID</TableHead>
-                  <TableHead>Subject</TableHead>
-                  <TableHead>Project</TableHead>
-                  <TableHead>Client</TableHead>
-                  <TableHead>Priority</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Assigned To</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead className="w-24">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.map(t => (
-                  <TableRow key={t.id} className="cursor-pointer" onClick={() => openView(t)}>
-                    <TableCell className="font-mono text-xs font-semibold">{t.ticket_id}</TableCell>
-                    <TableCell className="font-medium max-w-[200px] truncate">{t.subject}</TableCell>
-                    <TableCell className="text-sm">{projectNameMap[t.project_id] || "—"}</TableCell>
-                    <TableCell className="text-sm">{t.client_name}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className={PRIORITY_STYLES[t.priority] || ""}>{t.priority}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className={STATUS_STYLES[t.status] || ""}>{t.status}</Badge>
-                    </TableCell>
-                    <TableCell className="text-sm">{profileMap[t.assigned_engineer_id || ""] || "—"}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{format(new Date(t.created_at), "dd MMM yyyy HH:mm")}</TableCell>
-                    <TableCell onClick={e => e.stopPropagation()}>
-                      <div className="flex gap-1">
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openView(t)}>
-                          <Eye className="h-3.5 w-3.5" />
-                        </Button>
-                        {(canCreate || isProjectManager) && (
-                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(t)}>
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                        )}
-                        {isProjectManager && (
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDelete(t.id)}>
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/30">
+                    <TableHead className="font-semibold">Ticket ID</TableHead>
+                    <TableHead className="font-semibold">Subject</TableHead>
+                    <TableHead className="font-semibold">Project</TableHead>
+                    <TableHead className="font-semibold">Client</TableHead>
+                    <TableHead className="font-semibold">Priority</TableHead>
+                    <TableHead className="font-semibold">Status</TableHead>
+                    <TableHead className="font-semibold">Assigned To</TableHead>
+                    <TableHead className="font-semibold">Created</TableHead>
+                    <TableHead className="w-28 font-semibold">Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {filtered.map(t => (
+                    <TableRow key={t.id} className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => openView(t)}>
+                      <TableCell className="font-mono text-xs font-bold text-primary">{t.ticket_id}</TableCell>
+                      <TableCell className="font-medium max-w-[200px] truncate">{t.subject}</TableCell>
+                      <TableCell className="text-sm">{projectNameMap[t.project_id] || "—"}</TableCell>
+                      <TableCell className="text-sm">{t.client_name}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={PRIORITY_STYLES[t.priority] || ""}>{t.priority}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={STATUS_STYLES[t.status] || ""}>{t.status}</Badge>
+                      </TableCell>
+                      <TableCell className="text-sm">{profileMap[t.assigned_engineer_id || ""] || "—"}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{format(new Date(t.created_at), "dd MMM yyyy HH:mm")}</TableCell>
+                      <TableCell onClick={e => e.stopPropagation()}>
+                        <div className="flex gap-1">
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openView(t)} title="View">
+                            <Eye className="h-3.5 w-3.5" />
+                          </Button>
+                          {(canCreate) && (
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(t)} title="Edit">
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                          {canDelete && (
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDelete(t.id)} title="Delete">
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>
@@ -432,133 +516,186 @@ export default function SupportTickets() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader>
-            <DialogTitle>{editingTicket ? `Edit ${editingTicket.ticket_id}` : "New Support Ticket"}</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <TicketIcon className="h-5 w-5 text-primary" />
+              {editingTicket ? `Edit ${editingTicket.ticket_id}` : "New Support Ticket"}
+            </DialogTitle>
           </DialogHeader>
           <ScrollArea className="flex-1 pr-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-2">
-              {/* Project with search */}
-              <div className="space-y-2 md:col-span-2">
-                <Label>Project Name *</Label>
-                <Input placeholder="Search project..." value={projectSearch} onChange={e => setProjectSearch(e.target.value)} className="mb-1" />
-                <Select value={form.project_id} onValueChange={onProjectSelect}>
-                  <SelectTrigger><SelectValue placeholder="Select project" /></SelectTrigger>
-                  <SelectContent>
-                    {filteredProjects.map(p => (
-                      <SelectItem key={p.id} value={p.id}>{p.name} — {p.client_name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            <div className="space-y-6 py-2">
+              {/* Project Search */}
+              <div className="space-y-2" ref={projectSearchRef}>
+                <Label className="text-sm font-semibold">Project Name <span className="text-destructive">*</span></Label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Type to search projects by name or client..."
+                    className="pl-9 pr-8"
+                    value={projectSearch}
+                    onChange={e => {
+                      setProjectSearch(e.target.value);
+                      setProjectDropdownOpen(true);
+                      if (!e.target.value) setForm(f => ({ ...f, project_id: "", client_name: "", client_email: "", product_name: "", admin_email: "" }));
+                    }}
+                    onFocus={() => setProjectDropdownOpen(true)}
+                  />
+                  {form.project_id && (
+                    <button className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => {
+                      setProjectSearch("");
+                      setForm(f => ({ ...f, project_id: "", client_name: "", client_email: "", product_name: "", admin_email: "" }));
+                    }}>
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+                {projectDropdownOpen && filteredProjects.length > 0 && (
+                  <div className="absolute z-50 mt-1 w-full max-w-[calc(100%-3rem)] bg-popover border rounded-md shadow-lg max-h-48 overflow-y-auto">
+                    {filteredProjects.map(p => {
+                      const slaExpired = p.purchase_type !== "Rental" && p.sla_end_date && new Date(p.sla_end_date) < new Date();
+                      return (
+                        <button
+                          key={p.id}
+                          className={`w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors flex justify-between items-center ${slaExpired ? "opacity-50" : ""}`}
+                          onClick={() => onProjectSelect(p)}
+                        >
+                          <div>
+                            <span className="font-medium">{p.name}</span>
+                            <span className="text-muted-foreground ml-2">— {p.client_name}</span>
+                          </div>
+                          {slaExpired && <Badge variant="outline" className="text-destructive text-xs ml-2">SLA Expired</Badge>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                {selectedProject && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Selected: <span className="font-medium text-foreground">{selectedProject.name}</span> — {selectedProject.client_name}
+                  </p>
+                )}
               </div>
 
-              <div className="space-y-2">
-                <Label>Account Name (Client) *</Label>
-                <Input value={form.client_name} onChange={e => setForm(f => ({ ...f, client_name: e.target.value }))} />
-              </div>
-              <div className="space-y-2">
-                <Label>Client Email *</Label>
-                <Input value={form.client_email} onChange={e => setForm(f => ({ ...f, client_email: e.target.value }))} />
-              </div>
-              <div className="space-y-2">
-                <Label>Product Type *</Label>
-                <Input value={form.product_name} onChange={e => setForm(f => ({ ...f, product_name: e.target.value }))} />
-              </div>
-              <div className="space-y-2">
-                <Label>Admin Email</Label>
-                <Input value={form.admin_email} onChange={e => setForm(f => ({ ...f, admin_email: e.target.value }))} />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Priority *</Label>
-                <Select value={form.priority} onValueChange={v => setForm(f => ({ ...f, priority: v }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {getOptions("priority").map(o => <SelectItem key={o.id} value={o.field_value}>{o.field_value}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Status *</Label>
-                <Select value={form.status} onValueChange={v => setForm(f => ({ ...f, status: v }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {getOptions("status").map(o => <SelectItem key={o.id} value={o.field_value}>{o.field_value}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Department *</Label>
-                <Select value={form.department} onValueChange={v => setForm(f => ({ ...f, department: v }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {getOptions("department").map(o => <SelectItem key={o.id} value={o.field_value}>{o.field_value}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Issue Reported Via *</Label>
-                <Select value={form.issue_reported_via} onValueChange={v => setForm(f => ({ ...f, issue_reported_via: v }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {getOptions("issue_reported_via").map(o => <SelectItem key={o.id} value={o.field_value}>{o.field_value}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Case Type *</Label>
-                <Select value={form.case_type} onValueChange={v => setForm(f => ({ ...f, case_type: v }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {getOptions("case_type").map(o => <SelectItem key={o.id} value={o.field_value}>{o.field_value}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Category *</Label>
-                <Select value={form.category} onValueChange={v => setForm(f => ({ ...f, category: v, sub_category: "" }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {getOptions("category").map(o => <SelectItem key={o.id} value={o.field_value}>{o.field_value}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Sub Category</Label>
-                <Select value={form.sub_category} onValueChange={v => setForm(f => ({ ...f, sub_category: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Select sub category" /></SelectTrigger>
-                  <SelectContent>
-                    {subCategories.map(o => <SelectItem key={o.id} value={o.field_value}>{o.field_value}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+              {/* Auto-filled fields */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-sm">Account Name (Client) <span className="text-destructive">*</span></Label>
+                  <Input value={form.client_name} onChange={e => setForm(f => ({ ...f, client_name: e.target.value }))} className="bg-muted/30" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-sm">Client Email <span className="text-destructive">*</span></Label>
+                  <Input value={form.client_email} onChange={e => setForm(f => ({ ...f, client_email: e.target.value }))} className="bg-muted/30" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-sm">Product Type</Label>
+                  <Input value={form.product_name} onChange={e => setForm(f => ({ ...f, product_name: e.target.value }))} className="bg-muted/30" readOnly />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-sm">Admin Email</Label>
+                  <Input value={form.admin_email} onChange={e => setForm(f => ({ ...f, admin_email: e.target.value }))} className="bg-muted/30" />
+                </div>
               </div>
 
-              <div className="space-y-2">
-                <Label>Assigned Engineer</Label>
-                <Select value={form.assigned_engineer_id} onValueChange={v => setForm(f => ({ ...f, assigned_engineer_id: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Select engineer" /></SelectTrigger>
-                  <SelectContent>
-                    {engineers.map(e => (
-                      <SelectItem key={e.id} value={e.id}>{e.first_name} {e.last_name} ({e.email})</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <Separator />
+
+              {/* Core fields */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-sm">Priority <span className="text-destructive">*</span></Label>
+                  <Select value={form.priority} onValueChange={v => setForm(f => ({ ...f, priority: v }))}>
+                    <SelectTrigger><SelectValue placeholder="Select priority" /></SelectTrigger>
+                    <SelectContent>
+                      {getOptions("priority").map(o => <SelectItem key={o.id} value={o.field_value}>{o.field_value}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-sm">Status <span className="text-destructive">*</span></Label>
+                  <Select value={form.status} onValueChange={v => setForm(f => ({ ...f, status: v }))}>
+                    <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
+                    <SelectContent>
+                      {getOptions("status").map(o => <SelectItem key={o.id} value={o.field_value}>{o.field_value}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-sm">Department <span className="text-destructive">*</span></Label>
+                  <Select value={form.department} onValueChange={v => setForm(f => ({ ...f, department: v }))}>
+                    <SelectTrigger><SelectValue placeholder="Select department" /></SelectTrigger>
+                    <SelectContent>
+                      {getOptions("department").map(o => <SelectItem key={o.id} value={o.field_value}>{o.field_value}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-sm">Issue Reported Via <span className="text-destructive">*</span></Label>
+                  <Select value={form.issue_reported_via} onValueChange={v => setForm(f => ({ ...f, issue_reported_via: v }))}>
+                    <SelectTrigger><SelectValue placeholder="Select channel" /></SelectTrigger>
+                    <SelectContent>
+                      {getOptions("issue_reported_via").map(o => <SelectItem key={o.id} value={o.field_value}>{o.field_value}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-sm">Case Type <span className="text-destructive">*</span></Label>
+                  <Select value={form.case_type} onValueChange={v => setForm(f => ({ ...f, case_type: v }))}>
+                    <SelectTrigger><SelectValue placeholder="Select case type" /></SelectTrigger>
+                    <SelectContent>
+                      {getOptions("case_type").map(o => <SelectItem key={o.id} value={o.field_value}>{o.field_value}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-sm">Category <span className="text-destructive">*</span></Label>
+                  <Select value={form.category} onValueChange={v => setForm(f => ({ ...f, category: v, sub_category: "" }))}>
+                    <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
+                    <SelectContent>
+                      {getOptions("category").map(o => <SelectItem key={o.id} value={o.field_value}>{o.field_value}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-sm">Sub Category</Label>
+                  <Select value={form.sub_category} onValueChange={v => setForm(f => ({ ...f, sub_category: v }))}>
+                    <SelectTrigger><SelectValue placeholder="Select sub category" /></SelectTrigger>
+                    <SelectContent>
+                      {subCategories.map(o => <SelectItem key={o.id} value={o.field_value}>{o.field_value}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-sm">Assigned Engineer</Label>
+                  <Select value={form.assigned_engineer_id} onValueChange={v => setForm(f => ({ ...f, assigned_engineer_id: v }))}>
+                    <SelectTrigger><SelectValue placeholder="Select engineer" /></SelectTrigger>
+                    <SelectContent>
+                      {engineers.map(e => (
+                        <SelectItem key={e.id} value={e.id}>{e.first_name} {e.last_name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
-              <div className="space-y-2 md:col-span-2">
-                <Label>Subject / Name of Issue *</Label>
-                <Input value={form.subject} onChange={e => setForm(f => ({ ...f, subject: e.target.value }))} />
-              </div>
-              <div className="space-y-2 md:col-span-2">
-                <Label>Description</Label>
-                <Textarea rows={3} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
-              </div>
-              <div className="space-y-2 md:col-span-2">
-                <Label>Resolution / RCA</Label>
-                <Textarea rows={3} value={form.resolution} onChange={e => setForm(f => ({ ...f, resolution: e.target.value }))} />
+              <Separator />
+
+              {/* Text fields */}
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label className="text-sm">Subject / Name of Issue <span className="text-destructive">*</span></Label>
+                  <Input value={form.subject} onChange={e => setForm(f => ({ ...f, subject: e.target.value }))} placeholder="Brief description of the issue" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-sm">Description</Label>
+                  <Textarea rows={3} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Detailed description..." />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-sm">Resolution / RCA</Label>
+                  <Textarea rows={3} value={form.resolution} onChange={e => setForm(f => ({ ...f, resolution: e.target.value }))} placeholder="Solution provided or root cause analysis..." />
+                </div>
               </div>
 
               {form.case_type === "Health Checkup" && (
-                <div className="space-y-2 md:col-span-2">
-                  <Label>Health Checkup Report (PDF) *</Label>
+                <div className="space-y-1.5 p-4 border border-dashed border-destructive/30 rounded-lg bg-destructive/5">
+                  <Label className="text-sm font-semibold">Health Checkup Report (PDF) <span className="text-destructive">*</span></Label>
                   <Input type="file" accept=".pdf" onChange={e => setReportFile(e.target.files?.[0] || null)} />
                   {editingTicket?.report_file_url && !reportFile && (
                     <p className="text-xs text-muted-foreground">Existing file attached. Upload a new one to replace.</p>
@@ -567,9 +704,11 @@ export default function SupportTickets() {
               )}
             </div>
           </ScrollArea>
-          <DialogFooter>
+          <DialogFooter className="pt-4 border-t">
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSubmit} disabled={saving}>{saving ? "Saving..." : editingTicket ? "Update Ticket" : "Create Ticket"}</Button>
+            <Button onClick={handleSubmit} disabled={saving} className="min-w-[120px]">
+              {saving ? "Saving..." : editingTicket ? "Update Ticket" : "Create Ticket"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -578,46 +717,70 @@ export default function SupportTickets() {
       <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
-              {viewingTicket?.ticket_id}
+            <DialogTitle className="flex items-center gap-3">
+              <div className="h-8 w-8 rounded bg-primary/10 flex items-center justify-center">
+                <FileText className="h-4 w-4 text-primary" />
+              </div>
+              <div>
+                <span className="font-mono">{viewingTicket?.ticket_id}</span>
+                {viewingTicket && (
+                  <div className="flex gap-2 mt-1">
+                    <Badge variant="outline" className={PRIORITY_STYLES[viewingTicket.priority]}>{viewingTicket.priority}</Badge>
+                    <Badge variant="outline" className={STATUS_STYLES[viewingTicket.status]}>{viewingTicket.status}</Badge>
+                  </div>
+                )}
+              </div>
             </DialogTitle>
           </DialogHeader>
           {viewingTicket && (
             <Tabs defaultValue="details" className="flex-1 overflow-hidden flex flex-col">
-              <TabsList>
+              <TabsList className="w-full justify-start">
                 <TabsTrigger value="details">Details</TabsTrigger>
                 <TabsTrigger value="logs">Change Log ({ticketLogs.length})</TabsTrigger>
               </TabsList>
               <TabsContent value="details" className="flex-1 overflow-auto">
-                <div className="grid grid-cols-2 gap-4 py-2 text-sm">
-                  <div><span className="text-muted-foreground">Project:</span> <span className="font-medium">{projectNameMap[viewingTicket.project_id]}</span></div>
-                  <div><span className="text-muted-foreground">Client:</span> <span className="font-medium">{viewingTicket.client_name}</span></div>
-                  <div><span className="text-muted-foreground">Client Email:</span> <span className="font-medium">{viewingTicket.client_email}</span></div>
-                  <div><span className="text-muted-foreground">Product:</span> <span className="font-medium">{viewingTicket.product_name}</span></div>
-                  <div><span className="text-muted-foreground">Priority:</span> <Badge variant="outline" className={PRIORITY_STYLES[viewingTicket.priority]}>{viewingTicket.priority}</Badge></div>
-                  <div><span className="text-muted-foreground">Status:</span> <Badge variant="outline" className={STATUS_STYLES[viewingTicket.status]}>{viewingTicket.status}</Badge></div>
-                  <div><span className="text-muted-foreground">Department:</span> <span className="font-medium">{viewingTicket.department}</span></div>
-                  <div><span className="text-muted-foreground">Issue Via:</span> <span className="font-medium">{viewingTicket.issue_reported_via}</span></div>
-                  <div><span className="text-muted-foreground">Case Type:</span> <span className="font-medium">{viewingTicket.case_type}</span></div>
-                  <div><span className="text-muted-foreground">Category:</span> <span className="font-medium">{viewingTicket.category}</span></div>
-                  <div><span className="text-muted-foreground">Sub Category:</span> <span className="font-medium">{viewingTicket.sub_category || "—"}</span></div>
-                  <div><span className="text-muted-foreground">Admin Email:</span> <span className="font-medium">{viewingTicket.admin_email || "—"}</span></div>
-                  <div><span className="text-muted-foreground">Assigned To:</span> <span className="font-medium">{profileMap[viewingTicket.assigned_engineer_id || ""] || "—"}</span></div>
-                  <div><span className="text-muted-foreground">Created By:</span> <span className="font-medium">{profileMap[viewingTicket.created_by] || "—"}</span></div>
-                  <div><span className="text-muted-foreground">Created:</span> <span className="font-medium">{format(new Date(viewingTicket.created_at), "dd MMM yyyy HH:mm:ss")}</span></div>
-                  <div><span className="text-muted-foreground">Last Updated:</span> <span className="font-medium">{format(new Date(viewingTicket.updated_at), "dd MMM yyyy HH:mm:ss")}</span></div>
-                  {viewingTicket.closed_at && (
-                    <div><span className="text-muted-foreground">Closed:</span> <span className="font-medium">{format(new Date(viewingTicket.closed_at), "dd MMM yyyy HH:mm:ss")}</span></div>
-                  )}
-                  <div className="col-span-2"><Separator /></div>
-                  <div className="col-span-2"><span className="text-muted-foreground">Subject:</span><p className="font-medium mt-1">{viewingTicket.subject}</p></div>
-                  <div className="col-span-2"><span className="text-muted-foreground">Description:</span><p className="mt-1 whitespace-pre-wrap">{viewingTicket.description || "—"}</p></div>
-                  <div className="col-span-2"><span className="text-muted-foreground">Resolution / RCA:</span><p className="mt-1 whitespace-pre-wrap">{viewingTicket.resolution || "—"}</p></div>
+                <div className="space-y-4 py-2">
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+                    {[
+                      ["Project", projectNameMap[viewingTicket.project_id]],
+                      ["Client", viewingTicket.client_name],
+                      ["Client Email", viewingTicket.client_email],
+                      ["Product", viewingTicket.product_name],
+                      ["Department", viewingTicket.department],
+                      ["Issue Via", viewingTicket.issue_reported_via],
+                      ["Case Type", viewingTicket.case_type],
+                      ["Category", viewingTicket.category],
+                      ["Sub Category", viewingTicket.sub_category],
+                      ["Admin Email", viewingTicket.admin_email],
+                      ["Assigned To", profileMap[viewingTicket.assigned_engineer_id || ""]],
+                      ["Created By", profileMap[viewingTicket.created_by]],
+                      ["Created", format(new Date(viewingTicket.created_at), "dd MMM yyyy HH:mm:ss")],
+                      ["Last Updated", format(new Date(viewingTicket.updated_at), "dd MMM yyyy HH:mm:ss")],
+                      ...(viewingTicket.closed_at ? [["Closed", format(new Date(viewingTicket.closed_at), "dd MMM yyyy HH:mm:ss")]] : []),
+                    ].map(([label, value]) => (
+                      <div key={label as string} className="flex flex-col">
+                        <span className="text-xs text-muted-foreground uppercase tracking-wide">{label}</span>
+                        <span className="font-medium">{value || "—"}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <Separator />
+                  <div>
+                    <span className="text-xs text-muted-foreground uppercase tracking-wide">Subject</span>
+                    <p className="font-medium mt-1">{viewingTicket.subject}</p>
+                  </div>
+                  <div>
+                    <span className="text-xs text-muted-foreground uppercase tracking-wide">Description</span>
+                    <p className="mt-1 whitespace-pre-wrap text-sm">{viewingTicket.description || "—"}</p>
+                  </div>
+                  <div>
+                    <span className="text-xs text-muted-foreground uppercase tracking-wide">Resolution / RCA</span>
+                    <p className="mt-1 whitespace-pre-wrap text-sm">{viewingTicket.resolution || "—"}</p>
+                  </div>
                   {viewingTicket.report_file_url && (
-                    <div className="col-span-2">
-                      <span className="text-muted-foreground">Health Checkup Report:</span>
-                      <Button variant="link" className="p-0 h-auto ml-2" onClick={async () => {
+                    <div>
+                      <span className="text-xs text-muted-foreground uppercase tracking-wide">Health Checkup Report</span>
+                      <Button variant="link" className="p-0 h-auto ml-2 text-sm" onClick={async () => {
                         const { data } = await supabase.storage.from("ticket-reports").createSignedUrl(viewingTicket.report_file_url!, 3600);
                         if (data?.signedUrl) window.open(data.signedUrl, "_blank");
                       }}>Download Report</Button>
@@ -627,16 +790,19 @@ export default function SupportTickets() {
               </TabsContent>
               <TabsContent value="logs" className="flex-1 overflow-auto">
                 {ticketLogs.length === 0 ? (
-                  <p className="text-center py-8 text-muted-foreground">No change logs.</p>
+                  <div className="flex flex-col items-center justify-center py-12 gap-2">
+                    <Clock className="h-8 w-8 text-muted-foreground/40" />
+                    <p className="text-muted-foreground">No change logs yet</p>
+                  </div>
                 ) : (
                   <div className="space-y-3 py-2">
                     {ticketLogs.map(log => (
-                      <div key={log.id} className="flex items-start gap-3 text-sm border-l-2 border-primary/30 pl-3">
+                      <div key={log.id} className="flex items-start gap-3 text-sm border-l-2 border-primary/30 pl-3 py-1">
                         <Clock className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
                         <div>
                           <p className="font-medium">
                             {log.field_name === "created" ? "Ticket created" :
-                              `${log.field_name} changed from "${log.old_value || "—"}" to "${log.new_value || "—"}"`
+                              <><span className="text-muted-foreground">{log.field_name}:</span> "{log.old_value || "—"}" → "{log.new_value || "—"}"</>
                             }
                           </p>
                           <p className="text-xs text-muted-foreground">
