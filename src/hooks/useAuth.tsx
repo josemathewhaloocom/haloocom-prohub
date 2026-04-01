@@ -93,6 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isAccountsManager = roles.includes("accounts_manager");
   const isEngineer = roles.includes("engineer");
   const isCEO = roles.includes("ceo");
+  const isSupportManager = roles.includes("support_manager" as any);
 
   return (
     <AuthContext.Provider value={{
