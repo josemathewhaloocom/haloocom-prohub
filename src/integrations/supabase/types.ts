@@ -363,6 +363,7 @@ export type Database = {
           description: string | null
           gw_sl_no: string | null
           id: string
+          is_active: boolean
           location: string | null
           name: string
           num_channels: number | null
@@ -371,6 +372,7 @@ export type Database = {
           product_id: string | null
           product_version: string | null
           progress_percentage: number
+          purchase_type: string | null
           server_serial_number: string | null
           sl_no_remarks: string | null
           sla_end_date: string | null
@@ -394,6 +396,7 @@ export type Database = {
           description?: string | null
           gw_sl_no?: string | null
           id?: string
+          is_active?: boolean
           location?: string | null
           name: string
           num_channels?: number | null
@@ -402,6 +405,7 @@ export type Database = {
           product_id?: string | null
           product_version?: string | null
           progress_percentage?: number
+          purchase_type?: string | null
           server_serial_number?: string | null
           sl_no_remarks?: string | null
           sla_end_date?: string | null
@@ -425,6 +429,7 @@ export type Database = {
           description?: string | null
           gw_sl_no?: string | null
           id?: string
+          is_active?: boolean
           location?: string | null
           name?: string
           num_channels?: number | null
@@ -433,6 +438,7 @@ export type Database = {
           product_id?: string | null
           product_version?: string | null
           progress_percentage?: number
+          purchase_type?: string | null
           server_serial_number?: string | null
           sl_no_remarks?: string | null
           sla_end_date?: string | null
@@ -754,6 +760,7 @@ export type Database = {
         | "accounts_manager"
         | "engineer"
         | "ceo"
+        | "support_manager"
       approval_status: "pending" | "approved" | "rejected"
       milestone_status: "pending" | "in_progress" | "completed"
       project_priority: "low" | "medium" | "high" | "critical"
@@ -908,6 +915,7 @@ export const Constants = {
         "accounts_manager",
         "engineer",
         "ceo",
+        "support_manager",
       ],
       approval_status: ["pending", "approved", "rejected"],
       milestone_status: ["pending", "in_progress", "completed"],
