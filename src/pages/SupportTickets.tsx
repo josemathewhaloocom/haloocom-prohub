@@ -7,15 +7,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import {
-  Plus, Search, Trash2, Pencil, Eye, Upload, Clock, FileText,
-  AlertTriangle, TicketIcon, X,
+  Plus, Search, Trash2, Pencil, Eye, Clock, FileText,
+  TicketIcon, X, ChevronDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -53,20 +52,61 @@ interface ProjectOption {
 
 interface EngineerOption { id: string; first_name: string; last_name: string; email: string; }
 
+interface NativeSelectOption {
+  value: string;
+  label: string;
+  disabled?: boolean;
+}
+
 const PRIORITY_STYLES: Record<string, string> = {
-  Critical: "bg-destructive/10 text-destructive border-destructive/30",
-  High: "bg-orange-500/10 text-orange-600 border-orange-500/30",
-  Moderate: "bg-yellow-500/10 text-yellow-600 border-yellow-500/30",
-  Low: "bg-muted text-muted-foreground border-muted",
+  Critical: "border-destructive/20 bg-destructive/10 text-destructive",
+  High: "border-primary/20 bg-primary/10 text-primary",
+  Moderate: "border-warning/30 bg-warning/15 text-warning",
+  Low: "border-border bg-muted text-muted-foreground",
 };
 
 const STATUS_STYLES: Record<string, string> = {
-  Open: "bg-blue-500/10 text-blue-600 border-blue-500/30",
-  "In-progress": "bg-primary/10 text-primary border-primary/30",
-  Hold: "bg-orange-500/10 text-orange-600 border-orange-500/30",
-  "Awaiting Client Confirmation": "bg-yellow-500/10 text-yellow-600 border-yellow-500/30",
-  Closed: "bg-muted text-muted-foreground border-muted",
+  Open: "border-info/20 bg-info/10 text-info",
+  "In-progress": "border-primary/20 bg-primary/10 text-primary",
+  Hold: "border-warning/30 bg-warning/15 text-warning",
+  "Awaiting Client Confirmation": "border-border bg-secondary text-secondary-foreground",
+  Closed: "border-border bg-muted text-muted-foreground",
 };
+
+function NativeSelect({
+  value,
+  onChange,
+  placeholder,
+  options,
+  disabled = false,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  options: NativeSelectOption[];
+  disabled?: boolean;
+}) {
+  return (
+    <div className="relative">
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        disabled={disabled}
+        className="flex h-11 w-full appearance-none rounded-md border border-input bg-background px-3 py-2 pr-10 text-sm ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <option value="" disabled>
+          {placeholder}
+        </option>
+        {options.map((option) => (
+          <option key={`${option.value}-${option.label}`} value={option.value} disabled={option.disabled}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+    </div>
+  );
+}
 
 const emptyForm = {
   project_id: "", client_name: "", client_email: "", product_name: "",
@@ -77,10 +117,10 @@ const emptyForm = {
 };
 
 export default function SupportTickets() {
-  const { user, isProjectManager, isEngineer, roles } = useAuth();
-  const isSupportManager = roles.includes("support_manager" as any);
-  const canCreate = isProjectManager || isEngineer || isSupportManager;
-  const canDelete = isProjectManager || isSupportManager;
+  const { user, isProjectManager, isEngineer, isSupportManager } = useAuth();
+  const canManageTickets = isProjectManager || isSupportManager;
+  const canCreate = canManageTickets || isEngineer;
+  const canDelete = canManageTickets;
 
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [configs, setConfigs] = useState<TicketConfig[]>([]);
@@ -111,19 +151,35 @@ export default function SupportTickets() {
   const getOptions = (fieldName: string) =>
     configs.filter(c => c.field_name === fieldName && c.is_active).sort((a, b) => a.sort_order - b.sort_order);
 
+  const getSelectOptions = (fieldName: string): NativeSelectOption[] =>
+    getOptions(fieldName).map(option => ({ value: option.field_value, label: option.field_value }));
+
   const subCategories = useMemo(
     () => configs.filter(c => c.field_name === "sub_category" && c.is_active && c.parent_value === form.category).sort((a, b) => a.sort_order - b.sort_order),
     [configs, form.category]
   );
 
+  const isProjectBlocked = (project: ProjectOption) =>
+    project.purchase_type !== "Rental" && !!project.sla_end_date && new Date(project.sla_end_date) < new Date();
+
+  const resetProjectSelection = () => {
+    setForm((current) => ({
+      ...current,
+      project_id: "",
+      client_name: "",
+      client_email: "",
+      product_name: "",
+      admin_email: "",
+    }));
+  };
+
   const fetchAll = async () => {
     setLoading(true);
-    const [ticketRes, configRes, projectRes, engRes, profileRes] = await Promise.all([
+    const [ticketRes, configRes, projectRes, profileRes] = await Promise.all([
       supabase.from("support_tickets" as any).select("*").order("created_at", { ascending: false }),
       supabase.from("support_ticket_config" as any).select("*").order("sort_order"),
       supabase.from("projects").select("id, name, client_name, client_email, product_id, sla_end_date, purchase_type").order("name"),
       supabase.from("profiles").select("id, first_name, last_name, email"),
-      supabase.from("profiles").select("id, first_name, last_name"),
     ]);
 
     setTickets((ticketRes.data as any) ?? []);
@@ -145,11 +201,17 @@ export default function SupportTickets() {
       purchase_type: p.purchase_type,
     })));
 
-    const engs = (engRes.data ?? []) as any[];
-    setEngineers(engs);
+    const profiles = ((profileRes.data ?? []) as any[])
+      .map((profile) => ({
+        ...profile,
+        first_name: profile.first_name ?? "",
+        last_name: profile.last_name ?? "",
+      }))
+      .sort((a, b) => `${a.first_name} ${a.last_name}`.trim().localeCompare(`${b.first_name} ${b.last_name}`.trim()));
+    setEngineers(profiles);
 
     const pMap: Record<string, string> = {};
-    ((profileRes.data ?? []) as any[]).forEach(p => { pMap[p.id] = `${p.first_name} ${p.last_name}`.trim() || p.id; });
+    profiles.forEach(p => { pMap[p.id] = `${p.first_name} ${p.last_name}`.trim() || p.email || p.id; });
     setProfileMap(pMap);
 
     setLoading(false);
@@ -169,24 +231,23 @@ export default function SupportTickets() {
   }, []);
 
   const filteredProjects = useMemo(() => {
-    if (!projectSearch) return projects.slice(0, 20);
+    if (!projectSearch.trim()) return projects.slice(0, 8);
     const q = projectSearch.toLowerCase();
     return projects.filter(p =>
       p.name.toLowerCase().includes(q) ||
-      p.client_name.toLowerCase().includes(q)
-    ).slice(0, 20);
+      p.client_name.toLowerCase().includes(q) ||
+      (p.client_email || "").toLowerCase().includes(q) ||
+      (p.product_name || "").toLowerCase().includes(q)
+    ).slice(0, 8);
   }, [projects, projectSearch]);
 
   const selectedProject = useMemo(() => projects.find(p => p.id === form.project_id), [projects, form.project_id]);
 
   const onProjectSelect = (proj: ProjectOption) => {
-    // Check SLA validity - Rental projects don't need SLA check
-    if (proj.purchase_type !== "Rental" && proj.sla_end_date) {
+    if (isProjectBlocked(proj) && proj.sla_end_date) {
       const slaEnd = new Date(proj.sla_end_date);
-      if (slaEnd < new Date()) {
-        toast.error(`Cannot create ticket: SLA expired on ${format(slaEnd, "dd MMM yyyy")} for this client.`);
-        return;
-      }
+      toast.error(`Cannot create ticket: SLA expired on ${format(slaEnd, "dd MMM yyyy")} for this client.`);
+      return;
     }
     setForm(f => ({
       ...f,
@@ -204,6 +265,7 @@ export default function SupportTickets() {
     setEditingTicket(null);
     setForm({ ...emptyForm, assigned_engineer_id: user?.id || "" });
     setProjectSearch("");
+    setProjectDropdownOpen(false);
     setReportFile(null);
     setDialogOpen(true);
   };
@@ -231,6 +293,7 @@ export default function SupportTickets() {
       assigned_engineer_id: ticket.assigned_engineer_id || "",
     });
     setReportFile(null);
+    setProjectDropdownOpen(false);
     setDialogOpen(true);
   };
 
@@ -272,15 +335,17 @@ export default function SupportTickets() {
   const handleSubmit = async () => {
     const missing: string[] = [];
     if (!form.project_id) missing.push("Project");
-    if (!form.subject) missing.push("Subject");
+    if (!form.subject.trim()) missing.push("Subject");
     if (!form.department) missing.push("Department");
     if (!form.issue_reported_via) missing.push("Issue Reported Via");
     if (!form.case_type) missing.push("Case Type");
     if (!form.category) missing.push("Category");
+    if (!form.sub_category) missing.push("Sub Category");
     if (!form.priority) missing.push("Priority");
     if (!form.status) missing.push("Status");
-    if (!form.client_name) missing.push("Client Name");
-    if (!form.client_email) missing.push("Client Email");
+    if (!form.client_name.trim()) missing.push("Account Name");
+    if (!form.client_email.trim()) missing.push("Client Email");
+    if (!form.product_name.trim()) missing.push("Product Type");
 
     if (missing.length) {
       toast.error(`Missing required fields: ${missing.join(", ")}`);
@@ -370,6 +435,9 @@ export default function SupportTickets() {
     return m;
   }, [projects]);
 
+  const canEditTicket = (ticket: Ticket) =>
+    canManageTickets || ticket.created_by === user?.id || ticket.assigned_engineer_id === user?.id;
+
   // Stats
   const stats = useMemo(() => {
     const open = tickets.filter(t => t.status === "Open").length;
@@ -425,20 +493,22 @@ export default function SupportTickets() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input placeholder="Search ticket ID, subject, client..." className="pl-9" value={search} onChange={e => setSearch(e.target.value)} />
             </div>
-            <Select value={filterStatus} onValueChange={setFilterStatus}>
-              <SelectTrigger className="w-[180px]"><SelectValue placeholder="Status" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                {getOptions("status").map(o => <SelectItem key={o.id} value={o.field_value}>{o.field_value}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Select value={filterPriority} onValueChange={setFilterPriority}>
-              <SelectTrigger className="w-[160px]"><SelectValue placeholder="Priority" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Priorities</SelectItem>
-                {getOptions("priority").map(o => <SelectItem key={o.id} value={o.field_value}>{o.field_value}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <div className="w-[180px]">
+              <NativeSelect
+                value={filterStatus}
+                onChange={setFilterStatus}
+                placeholder="Status"
+                options={[{ value: "all", label: "All Statuses" }, ...getSelectOptions("status")]}
+              />
+            </div>
+            <div className="w-[160px]">
+              <NativeSelect
+                value={filterPriority}
+                onChange={setFilterPriority}
+                placeholder="Priority"
+                options={[{ value: "all", label: "All Priorities" }, ...getSelectOptions("priority")]}
+              />
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -491,7 +561,7 @@ export default function SupportTickets() {
                           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openView(t)} title="View">
                             <Eye className="h-3.5 w-3.5" />
                           </Button>
-                          {(canCreate) && (
+                          {canEditTicket(t) && (
                             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(t)} title="Edit">
                               <Pencil className="h-3.5 w-3.5" />
                             </Button>
@@ -514,15 +584,44 @@ export default function SupportTickets() {
 
       {/* Create / Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
-          <DialogHeader>
+        <DialogContent className="max-w-5xl max-h-[92vh] overflow-hidden border-border/70 bg-card p-0">
+          <DialogHeader className="border-b border-border/60 bg-muted/30 px-6 py-5">
             <DialogTitle className="flex items-center gap-2">
               <TicketIcon className="h-5 w-5 text-primary" />
               {editingTicket ? `Edit ${editingTicket.ticket_id}` : "New Support Ticket"}
             </DialogTitle>
+            <p className="text-sm text-muted-foreground">
+              Capture customer issues with searchable project selection, assignment, and change tracking.
+            </p>
           </DialogHeader>
-          <ScrollArea className="flex-1 pr-4">
-            <div className="space-y-6 py-2">
+          <ScrollArea className="flex-1 px-6">
+            <div className="space-y-6 py-6">
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="rounded-xl border border-border/60 bg-background p-4">
+                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">Ticket ID</p>
+                  <p className="mt-2 font-mono text-sm font-semibold text-foreground">
+                    {editingTicket?.ticket_id || "Auto-generated on create"}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-border/60 bg-background p-4">
+                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">Created By</p>
+                  <p className="mt-2 text-sm font-semibold text-foreground">
+                    {editingTicket ? profileMap[editingTicket.created_by] || "—" : profileMap[user?.id || ""] || user?.email || "Current user"}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-border/60 bg-background p-4">
+                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">Timeline</p>
+                  <p className="mt-2 text-sm font-semibold text-foreground">
+                    {editingTicket ? format(new Date(editingTicket.created_at), "dd MMM yyyy HH:mm") : "Captured on save"}
+                  </p>
+                  {editingTicket?.closed_at && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Closed {format(new Date(editingTicket.closed_at), "dd MMM yyyy HH:mm")}
+                    </p>
+                  )}
+                </div>
+              </div>
+
               {/* Project Search */}
               <div className="space-y-2" ref={projectSearchRef}>
                 <Label className="text-sm font-semibold">Project Name <span className="text-destructive">*</span></Label>
@@ -535,39 +634,61 @@ export default function SupportTickets() {
                     onChange={e => {
                       setProjectSearch(e.target.value);
                       setProjectDropdownOpen(true);
-                      if (!e.target.value) setForm(f => ({ ...f, project_id: "", client_name: "", client_email: "", product_name: "", admin_email: "" }));
+                      resetProjectSelection();
                     }}
                     onFocus={() => setProjectDropdownOpen(true)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Escape") setProjectDropdownOpen(false);
+                    }}
                   />
                   {form.project_id && (
-                    <button className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => {
+                    <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => {
                       setProjectSearch("");
-                      setForm(f => ({ ...f, project_id: "", client_name: "", client_email: "", product_name: "", admin_email: "" }));
+                      resetProjectSelection();
                     }}>
                       <X className="h-4 w-4" />
                     </button>
                   )}
+                  {projectDropdownOpen && (
+                    <div className="absolute left-0 right-0 top-full z-30 mt-2 overflow-hidden rounded-xl border border-border bg-popover shadow-lg">
+                      {filteredProjects.length > 0 ? (
+                        <div className="max-h-64 overflow-y-auto p-2">
+                          {filteredProjects.map((project) => {
+                            const slaExpired = isProjectBlocked(project);
+                            return (
+                              <button
+                                key={project.id}
+                                type="button"
+                                className="flex w-full items-start justify-between gap-3 rounded-lg px-3 py-3 text-left transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
+                                disabled={slaExpired}
+                                onClick={() => onProjectSelect(project)}
+                              >
+                                <div>
+                                  <p className="text-sm font-semibold text-foreground">{project.name}</p>
+                                  <p className="text-sm text-muted-foreground">{project.client_name}</p>
+                                  {(project.client_email || project.product_name) && (
+                                    <p className="mt-1 text-xs text-muted-foreground">
+                                      {[project.client_email, project.product_name].filter(Boolean).join(" • ")}
+                                    </p>
+                                  )}
+                                </div>
+                                {slaExpired && (
+                                  <Badge variant="outline" className="border-destructive/20 bg-destructive/10 text-destructive">
+                                    SLA expired
+                                  </Badge>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="px-4 py-5 text-sm text-muted-foreground">
+                          No projects match your search.
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-                {projectDropdownOpen && filteredProjects.length > 0 && (
-                  <div className="absolute z-50 mt-1 w-full max-w-[calc(100%-3rem)] bg-popover border rounded-md shadow-lg max-h-48 overflow-y-auto">
-                    {filteredProjects.map(p => {
-                      const slaExpired = p.purchase_type !== "Rental" && p.sla_end_date && new Date(p.sla_end_date) < new Date();
-                      return (
-                        <button
-                          key={p.id}
-                          className={`w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors flex justify-between items-center ${slaExpired ? "opacity-50" : ""}`}
-                          onClick={() => onProjectSelect(p)}
-                        >
-                          <div>
-                            <span className="font-medium">{p.name}</span>
-                            <span className="text-muted-foreground ml-2">— {p.client_name}</span>
-                          </div>
-                          {slaExpired && <Badge variant="outline" className="text-destructive text-xs ml-2">SLA Expired</Badge>}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
                 {selectedProject && (
                   <p className="text-xs text-muted-foreground mt-1">
                     Selected: <span className="font-medium text-foreground">{selectedProject.name}</span> — {selectedProject.client_name}
@@ -576,7 +697,7 @@ export default function SupportTickets() {
               </div>
 
               {/* Auto-filled fields */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 rounded-2xl border border-border/60 bg-muted/10 p-4 md:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label className="text-sm">Account Name (Client) <span className="text-destructive">*</span></Label>
                   <Input value={form.client_name} onChange={e => setForm(f => ({ ...f, client_name: e.target.value }))} className="bg-muted/30" />
@@ -586,8 +707,8 @@ export default function SupportTickets() {
                   <Input value={form.client_email} onChange={e => setForm(f => ({ ...f, client_email: e.target.value }))} className="bg-muted/30" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-sm">Product Type</Label>
-                  <Input value={form.product_name} onChange={e => setForm(f => ({ ...f, product_name: e.target.value }))} className="bg-muted/30" readOnly />
+                  <Label className="text-sm">Product Type <span className="text-destructive">*</span></Label>
+                  <Input value={form.product_name} onChange={e => setForm(f => ({ ...f, product_name: e.target.value }))} className="bg-muted/30" placeholder="Product will auto-fill from the project" />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-sm">Admin Email</Label>
@@ -598,87 +719,59 @@ export default function SupportTickets() {
               <Separator />
 
               {/* Core fields */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 rounded-2xl border border-border/60 bg-background p-4 md:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label className="text-sm">Priority <span className="text-destructive">*</span></Label>
-                  <Select value={form.priority} onValueChange={v => setForm(f => ({ ...f, priority: v }))}>
-                    <SelectTrigger><SelectValue placeholder="Select priority" /></SelectTrigger>
-                    <SelectContent>
-                      {getOptions("priority").map(o => <SelectItem key={o.id} value={o.field_value}>{o.field_value}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <NativeSelect value={form.priority} onChange={v => setForm(f => ({ ...f, priority: v }))} placeholder="Select priority" options={getSelectOptions("priority")} />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-sm">Status <span className="text-destructive">*</span></Label>
-                  <Select value={form.status} onValueChange={v => setForm(f => ({ ...f, status: v }))}>
-                    <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
-                    <SelectContent>
-                      {getOptions("status").map(o => <SelectItem key={o.id} value={o.field_value}>{o.field_value}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <NativeSelect value={form.status} onChange={v => setForm(f => ({ ...f, status: v }))} placeholder="Select status" options={getSelectOptions("status")} />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-sm">Department <span className="text-destructive">*</span></Label>
-                  <Select value={form.department} onValueChange={v => setForm(f => ({ ...f, department: v }))}>
-                    <SelectTrigger><SelectValue placeholder="Select department" /></SelectTrigger>
-                    <SelectContent>
-                      {getOptions("department").map(o => <SelectItem key={o.id} value={o.field_value}>{o.field_value}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <NativeSelect value={form.department} onChange={v => setForm(f => ({ ...f, department: v }))} placeholder="Select department" options={getSelectOptions("department")} />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-sm">Issue Reported Via <span className="text-destructive">*</span></Label>
-                  <Select value={form.issue_reported_via} onValueChange={v => setForm(f => ({ ...f, issue_reported_via: v }))}>
-                    <SelectTrigger><SelectValue placeholder="Select channel" /></SelectTrigger>
-                    <SelectContent>
-                      {getOptions("issue_reported_via").map(o => <SelectItem key={o.id} value={o.field_value}>{o.field_value}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <NativeSelect value={form.issue_reported_via} onChange={v => setForm(f => ({ ...f, issue_reported_via: v }))} placeholder="Select channel" options={getSelectOptions("issue_reported_via")} />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-sm">Case Type <span className="text-destructive">*</span></Label>
-                  <Select value={form.case_type} onValueChange={v => setForm(f => ({ ...f, case_type: v }))}>
-                    <SelectTrigger><SelectValue placeholder="Select case type" /></SelectTrigger>
-                    <SelectContent>
-                      {getOptions("case_type").map(o => <SelectItem key={o.id} value={o.field_value}>{o.field_value}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <NativeSelect value={form.case_type} onChange={v => setForm(f => ({ ...f, case_type: v }))} placeholder="Select case type" options={getSelectOptions("case_type")} />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-sm">Category <span className="text-destructive">*</span></Label>
-                  <Select value={form.category} onValueChange={v => setForm(f => ({ ...f, category: v, sub_category: "" }))}>
-                    <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
-                    <SelectContent>
-                      {getOptions("category").map(o => <SelectItem key={o.id} value={o.field_value}>{o.field_value}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <NativeSelect value={form.category} onChange={v => setForm(f => ({ ...f, category: v, sub_category: "" }))} placeholder="Select category" options={getSelectOptions("category")} />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-sm">Sub Category</Label>
-                  <Select value={form.sub_category} onValueChange={v => setForm(f => ({ ...f, sub_category: v }))}>
-                    <SelectTrigger><SelectValue placeholder="Select sub category" /></SelectTrigger>
-                    <SelectContent>
-                      {subCategories.map(o => <SelectItem key={o.id} value={o.field_value}>{o.field_value}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <Label className="text-sm">Sub Category <span className="text-destructive">*</span></Label>
+                  <NativeSelect
+                    value={form.sub_category}
+                    onChange={v => setForm(f => ({ ...f, sub_category: v }))}
+                    placeholder={form.category ? "Select sub category" : "Choose a category first"}
+                    options={subCategories.map(option => ({ value: option.field_value, label: option.field_value }))}
+                    disabled={!form.category || subCategories.length === 0}
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-sm">Assigned Engineer</Label>
-                  <Select value={form.assigned_engineer_id} onValueChange={v => setForm(f => ({ ...f, assigned_engineer_id: v }))}>
-                    <SelectTrigger><SelectValue placeholder="Select engineer" /></SelectTrigger>
-                    <SelectContent>
-                      {engineers.map(e => (
-                        <SelectItem key={e.id} value={e.id}>{e.first_name} {e.last_name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <NativeSelect
+                    value={form.assigned_engineer_id}
+                    onChange={v => setForm(f => ({ ...f, assigned_engineer_id: v }))}
+                    placeholder="Select engineer"
+                    options={engineers.map(engineer => ({
+                      value: engineer.id,
+                      label: `${engineer.first_name} ${engineer.last_name}`.trim() || engineer.email,
+                    }))}
+                  />
                 </div>
               </div>
 
               <Separator />
 
               {/* Text fields */}
-              <div className="space-y-4">
+              <div className="space-y-4 rounded-2xl border border-border/60 bg-muted/10 p-4">
                 <div className="space-y-1.5">
                   <Label className="text-sm">Subject / Name of Issue <span className="text-destructive">*</span></Label>
                   <Input value={form.subject} onChange={e => setForm(f => ({ ...f, subject: e.target.value }))} placeholder="Brief description of the issue" />
@@ -704,7 +797,7 @@ export default function SupportTickets() {
               )}
             </div>
           </ScrollArea>
-          <DialogFooter className="pt-4 border-t">
+          <DialogFooter className="border-t border-border/60 bg-muted/20 px-6 py-4">
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
             <Button onClick={handleSubmit} disabled={saving} className="min-w-[120px]">
               {saving ? "Saving..." : editingTicket ? "Update Ticket" : "Create Ticket"}
@@ -742,6 +835,7 @@ export default function SupportTickets() {
                 <div className="space-y-4 py-2">
                   <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
                     {[
+                      ["Ticket ID", viewingTicket.ticket_id],
                       ["Project", projectNameMap[viewingTicket.project_id]],
                       ["Client", viewingTicket.client_name],
                       ["Client Email", viewingTicket.client_email],

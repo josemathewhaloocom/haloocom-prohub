@@ -41,7 +41,8 @@ const TICKET_CONFIG_FIELDS = [
 ];
 
 export default function SettingsPage() {
-  const { user, isProjectManager } = useAuth();
+  const { user, isProjectManager, isSupportManager } = useAuth();
+  const canManageTicketConfig = isProjectManager || isSupportManager;
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [saving, setSaving] = useState(false);
@@ -191,8 +192,13 @@ export default function SettingsPage() {
   const categories = ticketConfigs.filter(c => c.field_name === "category" && c.is_active);
 
   useEffect(() => {
-    if (isProjectManager) { fetchProducts(); fetchSmtpSettings(); fetchCustomFields(); fetchTicketConfigs(); }
-  }, [isProjectManager]);
+    if (isProjectManager) {
+      fetchProducts();
+      fetchSmtpSettings();
+      fetchCustomFields();
+    }
+    if (canManageTicketConfig) fetchTicketConfigs();
+  }, [isProjectManager, canManageTicketConfig]);
 
   return (
     <div className="space-y-6">
@@ -325,7 +331,7 @@ export default function SettingsPage() {
         </Card>
       )}
 
-      {isProjectManager && (
+      {canManageTicketConfig && (
         <Card className="max-w-2xl">
           <CardHeader>
             <div className="flex items-center gap-2"><Headset className="h-4 w-4 text-muted-foreground" /><CardTitle className="text-base">Support Ticket Dropdown Configuration</CardTitle></div>

@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import { useState } from "react";
 
 export default function AppSidebar() {
-  const { signOut, user, isProjectManager, isEngineer } = useAuth();
+  const { signOut, user, isProjectManager, isEngineer, isSupportManager } = useAuth();
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
 
@@ -33,10 +33,10 @@ export default function AppSidebar() {
     { to: "/engineers", label: "Engineers", icon: Users, visible: isProjectManager },
     { to: "/updates", label: "Daily Updates", icon: ClipboardList, visible: isProjectManager || isEngineer },
     { to: "/documents", label: "Documents", icon: FileText, visible: true },
-    { to: "/tickets", label: "Support Tickets", icon: Headset, visible: isProjectManager || isEngineer },
-    { to: "/ticket-reports", label: "Ticket Reports", icon: BarChart3, visible: isProjectManager },
+    { to: "/tickets", label: "Support Tickets", icon: Headset, visible: isProjectManager || isEngineer || isSupportManager },
+    { to: "/ticket-reports", label: "Ticket Reports", icon: BarChart3, visible: isProjectManager || isSupportManager },
     { to: "/users", label: "Users", icon: UserCog, visible: isProjectManager },
-    { to: "/settings", label: "Settings", icon: Settings, visible: isProjectManager },
+    { to: "/settings", label: "Settings", icon: Settings, visible: isProjectManager || isSupportManager },
   ];
 
   return (
