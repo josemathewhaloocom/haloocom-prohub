@@ -351,6 +351,7 @@ export type Database = {
       }
       projects: {
         Row: {
+          admin_email: string | null
           amc_end_date: string | null
           amc_start_date: string | null
           budget: number | null
@@ -384,6 +385,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          admin_email?: string | null
           amc_end_date?: string | null
           amc_start_date?: string | null
           budget?: number | null
@@ -417,6 +419,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          admin_email?: string | null
           amc_end_date?: string | null
           amc_start_date?: string | null
           budget?: number | null
