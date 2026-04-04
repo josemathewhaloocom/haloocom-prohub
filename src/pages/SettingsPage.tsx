@@ -378,26 +378,45 @@ export default function SettingsPage() {
               <ul className="space-y-2">
                 {filteredConfigs.map(item => (
                   <li key={item.id} className="flex items-center justify-between gap-2 rounded-md border px-3 py-2">
-                    <div className="flex items-center gap-2">
-                      <span className={`text-sm font-medium ${!item.is_active ? "text-muted-foreground line-through" : ""}`}>
-                        {item.field_value}
-                      </span>
-                      {item.parent_value && (
-                        <Badge variant="outline" className="text-xs">Parent: {item.parent_value}</Badge>
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      {editingConfigId === item.id ? (
+                        <div className="flex items-center gap-1 flex-1">
+                          <Input
+                            value={editingConfigValue}
+                            onChange={e => setEditingConfigValue(e.target.value)}
+                            className="h-8 text-sm"
+                            onKeyDown={e => { if (e.key === "Enter") handleEditConfig(item.id); if (e.key === "Escape") setEditingConfigId(null); }}
+                            autoFocus
+                          />
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-primary" onClick={() => handleEditConfig(item.id)}><Check className="h-3.5 w-3.5" /></Button>
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditingConfigId(null)}><X className="h-3.5 w-3.5" /></Button>
+                        </div>
+                      ) : (
+                        <>
+                          <span className={`text-sm font-medium truncate ${!item.is_active ? "text-muted-foreground line-through" : ""}`}>
+                            {item.field_value}
+                          </span>
+                          {item.parent_value && <Badge variant="outline" className="text-xs shrink-0">Parent: {item.parent_value}</Badge>}
+                        </>
                       )}
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Badge
-                        variant="outline"
-                        className={`cursor-pointer text-xs ${item.is_active ? "border-green-500/40 text-green-600 bg-green-500/10" : "border-muted text-muted-foreground"}`}
-                        onClick={() => handleToggleConfig(item)}
-                      >
-                        {item.is_active ? "Active" : "Inactive"}
-                      </Badge>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDeleteConfig(item.id)}>
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
+                    {editingConfigId !== item.id && (
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setEditingConfigId(item.id); setEditingConfigValue(item.field_value); }} title="Edit">
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Badge
+                          variant="outline"
+                          className={`cursor-pointer text-xs ${item.is_active ? "border-green-500/40 text-green-600 bg-green-500/10" : "border-muted text-muted-foreground"}`}
+                          onClick={() => handleToggleConfig(item)}
+                        >
+                          {item.is_active ? "Active" : "Inactive"}
+                        </Badge>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDeleteConfig(item.id)}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    )}
                   </li>
                 ))}
               </ul>
