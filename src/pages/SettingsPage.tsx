@@ -33,6 +33,7 @@ interface TicketConfigItem {
 
 const TICKET_CONFIG_FIELDS = [
   { key: "status", label: "Status" },
+  { key: "priority", label: "Priority" },
   { key: "department", label: "Department" },
   { key: "issue_reported_via", label: "Issue Reported Via" },
   { key: "case_type", label: "Case Type" },
