@@ -191,6 +191,13 @@ export default function SettingsPage() {
     else fetchTicketConfigs();
   };
 
+  const handleEditConfig = async (id: string) => {
+    if (!editingConfigValue.trim()) return;
+    const { error } = await supabase.from("support_ticket_config" as any).update({ field_value: editingConfigValue.trim() }).eq("id", id);
+    if (error) toast.error(error.message);
+    else { toast.success("Value updated!"); setEditingConfigId(null); fetchTicketConfigs(); }
+  };
+
   const filteredConfigs = ticketConfigs.filter(c => c.field_name === selectedConfigField);
   const categories = ticketConfigs.filter(c => c.field_name === "category" && c.is_active);
 
