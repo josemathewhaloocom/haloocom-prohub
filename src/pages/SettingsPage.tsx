@@ -10,7 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Trash2, PackageOpen, Mail, Settings2, Headset } from "lucide-react";
+import { Plus, Trash2, PackageOpen, Mail, Settings2, Headset, Pencil, Check, X } from "lucide-react";
 import { toast } from "sonner";
 
 interface SmtpSettings {
