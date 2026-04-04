@@ -1,144 +1,77 @@
-# Multi-Role System, Approval Workflow & Dual-Role Project Manager
 
-## Summary
+Goal: fix the Support Ticket module end-to-end, starting with the current blocker where the form cannot scroll and the submit button is clipped.
 
-Overhaul the role system from 2 roles to 7, add a multi-stage approval workflow before projects reach "open", add new project fields (serial numbers, SLA, AMC), restructure document uploads by role, and allow users (including Project Managers) to hold multiple roles simultaneously.
+What I found
+- The create/edit modal in `src/pages/SupportTickets.tsx` is the immediate problem. It uses `DialogContent` with `overflow-hidden` and a `ScrollArea` inside a grid layout, but the scrollable body is not given a real bounded height. That makes the lower fields and footer fall outside the visible area, which matches your “no scroll / submit button not visible” issue.
+- Session replay shows project selection is working. Network logs also show valid `support_ticket_config` rows for Department and Issue Reported Via. So the dropdown data exists; the main blocker is the form/modal behavior.
+- There are still spec gaps in the current module:
+  - `admin_email` is being filled from `client_email`, not from dedicated project info.
+  - engineer assignment currently uses all profiles, not only engineers.
+  - engineers still depend on project-assignment visibility, which conflicts with your requirement that they can create tickets for all eligible projects.
+  - ticket dropdown config supports add/delete/toggle, but not proper edit/modify flow.
 
----
+Implementation plan
 
-## Key Design Decision: Multi-Role Support
+1. Fix the modal layout first in `src/pages/SupportTickets.tsx`
+- Convert the ticket dialog into a true `flex flex-col` modal with fixed viewport height.
+- Give the body a bounded `overflow-y-auto` region and keep the footer sticky/always visible.
+- Add `DialogDescription` to remove the current accessibility warning and stabilize the dialog structure.
 
-A user can hold **multiple roles** (e.g., Project Manager + Engineer). The `user_roles` table already supports this (one row per role). The auth system will be updated to track `roles: AppRole[]` with helper booleans. When a Project Manager also has the `engineer` role, they get engineer capabilities (document uploads, daily updates on assigned projects) in addition to super-admin access.
+2. Rebuild the ticket form so all required fields are reachable and clear
+- Keep the full required field set visible in a consistent order:
+  - Ticket ID preview
+  - Project search
+  - auto-filled account/client/product/admin info
+  - Priority, Status, Department, Issue Reported Via, Case Type, Category, Sub Category
+  - Subject, Description, Resolution / RCA
+  - Assigned Engineer
+  - conditional Health Checkup PDF upload
+- Add inline field errors, not only a generic toast, so users can see exactly what is missing.
+- Keep the submit action visible and clearly disabled/enabled based on form state.
 
----
+3. Rework the project search and ticket eligibility flow
+- Keep the searchable project picker, but make its result panel contained and non-blocking inside the form.
+- Show project name, client name, and product in the search results.
+- Enforce eligibility clearly:
+  - allow ticket creation for active support customers
+  - block expired SLA projects
+  - allow Rental projects even if SLA/AMC is not relevant
+- Show a readable blocked-state message instead of failing late during submit.
 
-## Phase 1: Database Migration
+4. Fix the data gaps behind the form
+- Add a dedicated project-level admin/support email field via migration so `admin_email` is truly auto-filled from project info.
+- If not already wired in UI, finish wiring `purchase_type` in project create/edit so Buyout / Rental / L2H actually feeds the ticket eligibility logic.
+- Restrict Assigned Engineer choices to real engineers only.
 
-**Enum changes:**
+5. Align permissions with your required access model
+- Engineers: create and edit their own / assigned tickets only.
+- Project Managers and Support Managers: create, edit, and delete all tickets.
+- Adjust RLS and frontend behavior so engineers can browse all allowed projects for ticket creation, while assignment-based restrictions stay in place for upload-only modules where needed.
 
-- Replace `app_role` enum: `project_manager`, `admin_manager`, `sales`, `sales_manager`, `accounts_manager`, `engineer`, `ceo`
-- Extend `project_status` enum: add `draft`, `sales_approved`, `accounts_approved`, `admin_reviewed` before `open`
+6. Finish the admin configuration side
+- Upgrade `src/pages/SettingsPage.tsx` so ticket dropdowns can be add / edit / delete / activate / deactivate, not just add/delete/toggle.
+- Keep category → sub-category relationships editable.
+- If your “Admin” role should also manage ticket config, extend access to that role too; otherwise keep PM/support-manager as the ticket administrators.
 
-**New columns on `projects`:**
+7. Recheck reports after the create/edit flow is stable
+- Validate `src/pages/TicketReports.tsx` against the final ticket data.
+- Confirm Client-wise summary, Engineer performance, and TAT still calculate correctly after ticket creation/editing is fixed.
+- Add stronger empty/error states so reports remain usable.
 
-- `server_serial_number` (text), `gw_sl_no` (text), `sl_no_remarks` (text)
-- `sla_period` (text), `sla_start_date` (date), `sla_end_date` (date)
-- `amc_start_date` (date), `amc_end_date` (date)
+Technical details
+- Main files involved:
+  - `src/pages/SupportTickets.tsx`
+  - `src/pages/SettingsPage.tsx`
+  - `src/pages/Projects.tsx`
+  - new migration(s) under `supabase/migrations/`
+- Expected backend changes:
+  - dedicated project admin/support email field
+  - possible policy adjustment for engineer project visibility in ticket creation
+  - possible safe source for “engineer-only” assignment options
 
-**New DB functions:**
-
-- `is_super_admin()` — checks for `project_manager` role
-- `has_any_role(roles text[])` — checks if user has any of the listed roles
-
-**RLS policy updates** (all tables):
-
-- Replace `is_admin()` references with `is_super_admin()` for full-access policies
-- Add role-specific policies:
-  - `projects`: Sales + Project Manager can INSERT; Sales Manager / Accounts Manager / Admin Manager can UPDATE during their approval step; CEO can SELECT all; Engineer can SELECT assigned
-  - `documents`: role-based INSERT (Sales for SOW/MSA/Pre-install; Admin Manager for DC; Engineer for QC/Installation/Security/Training/Architecture/Completed SOW)
-  - `project_assignments`: Project Manager can manage
-  - `profiles`: all authenticated can view (needed for Users page)
-  - `user_roles`: Project Manager can manage all; users can read own
-
----
-
-## Phase 2: Auth System (`useAuth.tsx`)
-
-- Fetch **all** roles: `roles: AppRole[]`
-- Add helpers: `isProjectManager`, `isAdminManager`, `isSales`, `isSalesManager`, `isAccountsManager`, `isEngineer`, `isCEO`
-- A user with both `project_manager` and `engineer` roles gets `isProjectManager = true` AND `isEngineer = true`
-- All role checks throughout the app use these helpers
-
----
-
-## Phase 3: Sidebar & Routing
-
-`**AppSidebar.tsx**` — role-based nav visibility:
-
-- Dashboard, Projects, Documents: all roles
-- Engineers: Project Manager only
-- Daily Updates: Engineer, Project Manager
-- Users: Project Manager only
-- Settings: Project Manager only
-- CEO: view-only everywhere
-
-`**App.tsx**` — add `/users` route
-
----
-
-## Phase 4: Project Creation & Approval Workflow
-
-`**Projects.tsx`:**
-
-- Sales and Project Manager can create projects (status = `draft`)
-- Sales uploads SOW, Pre-Installation Checklist, MSA during creation
-
-`**ProjectDetail.tsx` — approval chain:**
-
-1. `draft` → Sales Manager sees "Approve" button → `sales_approved` → email to Accounts Manager
-2. `sales_approved` → Accounts Manager approves → `accounts_approved` → email to Admin Manager
-3. `accounts_approved` → Admin Manager uploads DC + fills serial numbers → `admin_reviewed` → email to Project Manager
-4. `admin_reviewed` → Project Manager sets to `open`, assigns engineer
-
-**Field editing by role:**
-
-- Sales: SLA Period, SLA Start/End, AMC Start/End, client details
-- Admin Manager: Server Serial Number, GW SL No, SL No Remarks
-- Project Manager: everything (super admin)
-- Project Manager with engineer role: can also upload engineer documents and submit daily updates on assigned projects
-
----
-
-## Phase 5: Document Types by Role
-
-
-| Role                                | Can Upload                                                                                                                      |
-| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| Sales                               | SOW, Pre-Installation Checklist, MSA                                                                                            |
-| Admin Manager                       | DC Document                                                                                                                     |
-| Engineer (or PM with engineer role) | QC Report, Installation Completion Report, Security Guidelines, Signed DC, Training Report, Project Architecture, Completed SOW |
-
-
-**Client signing** (public link): Installation Completion Report, Security Guidelines, Training Report, Signed DC only.
-**Internal only** (no client signature): Project Architecture, Completed SOW.
-
----
-
-## Phase 6: Users Page (`UsersPage.tsx`)
-
-- Project Manager can view all users, toggle roles on/off per user
-- A user can have multiple roles (e.g., Project Manager + Engineer)
-- Invite new users with selected roles
-- Rename/refactor `invite-engineer` edge function to `invite-user` supporting any role(s)
-
----
-
-## Phase 7: Edge Function & Email Updates
-
-- `send-email`: allow all roles (not just admin/engineer)
-- `invite-user`: accept `roles: string[]` param, insert multiple `user_roles` rows
-- Workflow emails: notify Sales Manager on draft creation, Accounts Manager on sales approval, Admin Manager on accounts approval, Project Manager on admin review
-
----
-
-## Files to Create/Modify
-
-
-| Action | File                                          |
-| ------ | --------------------------------------------- |
-| Create | `src/pages/UsersPage.tsx`                     |
-| Modify | `src/hooks/useAuth.tsx`                       |
-| Modify | `src/components/AppSidebar.tsx`               |
-| Modify | `src/App.tsx`                                 |
-| Modify | `src/pages/Projects.tsx`                      |
-| Modify | `src/pages/ProjectDetail.tsx`                 |
-| Modify | `src/pages/Dashboard.tsx`                     |
-| Modify | `src/pages/Documents.tsx`                     |
-| Modify | `src/pages/Engineers.tsx`                     |
-| Modify | `src/pages/SettingsPage.tsx`                  |
-| Modify | `supabase/functions/send-email/index.ts`      |
-| Modify | `supabase/functions/invite-engineer/index.ts` |
-| Create | SQL migration (enum + columns + RLS)          |
-
-
-This is a large change. I will implement it in the phases listed above, starting with the database migration and auth changes, then the UI.
+QA checklist
+- Open New Ticket on a short-height screen and confirm the form body scrolls while the footer stays visible.
+- Search and select a project, fill all mandatory fields, and create a normal ticket successfully.
+- Create a Health Checkup ticket and confirm PDF upload is mandatory.
+- Verify engineer / project manager / support manager permissions for create, edit, and delete.
+- Confirm change logs, created/closed timestamps, and reports update correctly after edits.
