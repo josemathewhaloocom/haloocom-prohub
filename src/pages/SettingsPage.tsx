@@ -71,6 +71,8 @@ export default function SettingsPage() {
   const [newConfigValue, setNewConfigValue] = useState("");
   const [newConfigParent, setNewConfigParent] = useState("");
   const [addingConfig, setAddingConfig] = useState(false);
+  const [editingConfigId, setEditingConfigId] = useState<string | null>(null);
+  const [editingConfigValue, setEditingConfigValue] = useState("");
 
   const handleSave = async () => {
     if (!user) return;
