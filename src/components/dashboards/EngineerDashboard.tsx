@@ -114,7 +114,7 @@ export default function EngineerDashboard() {
             <p className="text-sm font-medium text-muted-foreground">Average Project Progress</p>
             <span className="text-lg font-bold">{projectStats.avgProgress}%</span>
           </div>
-          <Progress value={projectStats.avgProgress} className="h-3" />
+          <Progress value={projectStats.avgProgress} />
         </CardContent>
       </Card>
 

@@ -96,7 +96,7 @@ export default function CEODashboard() {
             <p className="text-sm font-medium text-muted-foreground">Organization Average Progress</p>
             <span className="text-lg font-bold">{stats.avgProgress}%</span>
           </div>
-          <Progress value={stats.avgProgress} className="h-3" />
+          <Progress value={stats.avgProgress} />
         </CardContent>
       </Card>
 
