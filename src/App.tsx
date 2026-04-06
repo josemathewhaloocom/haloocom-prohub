@@ -16,6 +16,7 @@ import DailyUpdates from "@/pages/DailyUpdates";
 import UsersPage from "@/pages/UsersPage";
 import SupportTickets from "@/pages/SupportTickets";
 import TicketReports from "@/pages/TicketReports";
+import FAQPage from "@/pages/FAQPage";
 import NotFound from "./pages/NotFound";
 import PublicSign from "./pages/PublicSign";
 
@@ -40,6 +41,7 @@ const App = () => (
               <Route path="/documents" element={<Documents />} />
               <Route path="/tickets" element={<SupportTickets />} />
               <Route path="/ticket-reports" element={<TicketReports />} />
+              <Route path="/faq" element={<FAQPage />} />
               <Route path="/users" element={<UsersPage />} />
               <Route path="/settings" element={<SettingsPage />} />
             </Route>
