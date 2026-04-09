@@ -656,6 +656,7 @@ export type Database = {
         Row: {
           admin_email: string | null
           assigned_engineer_id: string | null
+          assigned_team: string | null
           case_type: string
           category: string
           client_email: string | null
@@ -675,12 +676,14 @@ export type Database = {
           status: string
           sub_category: string | null
           subject: string
+          team: string
           ticket_id: string
           updated_at: string
         }
         Insert: {
           admin_email?: string | null
           assigned_engineer_id?: string | null
+          assigned_team?: string | null
           case_type: string
           category: string
           client_email?: string | null
@@ -700,12 +703,14 @@ export type Database = {
           status?: string
           sub_category?: string | null
           subject: string
+          team?: string
           ticket_id?: string
           updated_at?: string
         }
         Update: {
           admin_email?: string | null
           assigned_engineer_id?: string | null
+          assigned_team?: string | null
           case_type?: string
           category?: string
           client_email?: string | null
@@ -725,6 +730,7 @@ export type Database = {
           status?: string
           sub_category?: string | null
           subject?: string
+          team?: string
           ticket_id?: string
           updated_at?: string
         }
@@ -803,6 +809,7 @@ export type Database = {
         | "engineer"
         | "ceo"
         | "support_manager"
+        | "engineering_manager"
       approval_status: "pending" | "approved" | "rejected"
       milestone_status: "pending" | "in_progress" | "completed"
       project_priority: "low" | "medium" | "high" | "critical"
@@ -958,6 +965,7 @@ export const Constants = {
         "engineer",
         "ceo",
         "support_manager",
+        "engineering_manager",
       ],
       approval_status: ["pending", "approved", "rejected"],
       milestone_status: ["pending", "in_progress", "completed"],
