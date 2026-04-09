@@ -646,7 +646,16 @@ export default function SupportTickets() {
                 <NativeSelect value={form.assigned_engineer_id} onChange={v => setForm(f => ({ ...f, assigned_engineer_id: v }))} placeholder="Select engineer"
                   options={engineers.map(e => ({ value: e.id, label: `${e.first_name} ${e.last_name}`.trim() || e.email }))} />
               </div>
-            </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Team <span className="text-destructive">*</span></Label>
+                <NativeSelect value={form.team} onChange={v => setForm(f => ({ ...f, team: v }))} placeholder="Select team"
+                  options={[{ value: "support", label: "Support" }, { value: "engineering", label: "Engineering" }]} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Assigned Team</Label>
+                <NativeSelect value={form.assigned_team} onChange={v => setForm(f => ({ ...f, assigned_team: v }))} placeholder="Select assigned team"
+                  options={[{ value: "", label: "Same as Team" }, { value: "support", label: "Support" }, { value: "engineering", label: "Engineering" }]} />
+              </div>
 
             {/* Text fields */}
             <div className="space-y-3">
