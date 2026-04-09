@@ -283,7 +283,7 @@ export default function SupportTickets() {
   const logChanges = async (ticketId: string, oldTicket: Ticket | null, newData: Record<string, any>) => {
     if (!oldTicket || !user) return;
     const fields = ["status", "priority", "department", "subject", "description", "resolution",
-      "issue_reported_via", "case_type", "category", "sub_category", "assigned_engineer_id", "client_name", "client_email"];
+      "issue_reported_via", "case_type", "category", "sub_category", "assigned_engineer_id", "client_name", "client_email", "team", "assigned_team"];
     const logs: any[] = [];
     for (const f of fields) {
       const oldVal = (oldTicket as any)[f] || "";
