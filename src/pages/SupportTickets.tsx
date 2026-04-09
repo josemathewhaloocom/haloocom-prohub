@@ -260,6 +260,8 @@ export default function SupportTickets() {
       case_type: ticket.case_type, category: ticket.category,
       sub_category: ticket.sub_category || "",
       assigned_engineer_id: ticket.assigned_engineer_id || "",
+      team: ticket.team || "support",
+      assigned_team: ticket.assigned_team || "",
     });
     setReportFile(null); setProjectDropdownOpen(false); setFieldErrors({});
     setDialogOpen(true);
