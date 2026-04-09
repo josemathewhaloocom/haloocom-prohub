@@ -13,13 +13,14 @@ import {
   Headset,
   BarChart3,
   HelpCircle,
+  TicketIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 
 export default function AppSidebar() {
-  const { signOut, user, isProjectManager, isEngineer, isSupportManager, isSalesManager } = useAuth();
+  const { signOut, user, isProjectManager, isEngineer, isSupportManager, isSalesManager, isEngineeringManager } = useAuth();
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
 
@@ -34,11 +35,11 @@ export default function AppSidebar() {
     { to: "/engineers", label: "Engineers", icon: Users, visible: isProjectManager },
     { to: "/updates", label: "Daily Updates", icon: ClipboardList, visible: isProjectManager || isEngineer },
     { to: "/documents", label: "Documents", icon: FileText, visible: true },
-    { to: "/tickets", label: "Support Tickets", icon: Headset, visible: isProjectManager || isEngineer || isSupportManager },
-    { to: "/ticket-reports", label: "Ticket Reports", icon: BarChart3, visible: isProjectManager || isSupportManager },
+    { to: "/tickets", label: "Tickets", icon: TicketIcon, visible: isProjectManager || isEngineer || isSupportManager || isEngineeringManager },
+    { to: "/ticket-reports", label: "Ticket Reports", icon: BarChart3, visible: isProjectManager || isSupportManager || isEngineeringManager },
     { to: "/faq", label: "FAQ", icon: HelpCircle, visible: true },
     { to: "/users", label: "Users", icon: UserCog, visible: isProjectManager },
-    { to: "/settings", label: "Settings", icon: Settings, visible: isProjectManager || isSupportManager },
+    { to: "/settings", label: "Settings", icon: Settings, visible: isProjectManager || isSupportManager || isEngineeringManager },
   ];
 
   return (
