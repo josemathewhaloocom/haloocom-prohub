@@ -34,6 +34,7 @@ interface Ticket {
   assigned_engineer_id: string | null; created_by: string;
   report_file_url: string | null;
   created_at: string; updated_at: string; closed_at: string | null;
+  team: string; assigned_team: string | null;
 }
 interface TicketLog {
   id: string; ticket_id: string; field_name: string;
@@ -94,12 +95,13 @@ const emptyForm = {
   admin_email: "", status: "Open", priority: "High", department: "",
   subject: "", description: "", resolution: "", issue_reported_via: "",
   case_type: "", category: "", sub_category: "", assigned_engineer_id: "",
+  team: "support", assigned_team: "",
 };
 
 // ═══════════════════════════════════════════════════════════════════
 export default function SupportTickets() {
-  const { user, isProjectManager, isEngineer, isSupportManager } = useAuth();
-  const canManageTickets = isProjectManager || isSupportManager;
+  const { user, isProjectManager, isEngineer, isSupportManager, isEngineeringManager } = useAuth();
+  const canManageTickets = isProjectManager || isSupportManager || isEngineeringManager;
   const canCreate = canManageTickets || isEngineer;
   const canDelete = canManageTickets;
 
@@ -258,6 +260,8 @@ export default function SupportTickets() {
       case_type: ticket.case_type, category: ticket.category,
       sub_category: ticket.sub_category || "",
       assigned_engineer_id: ticket.assigned_engineer_id || "",
+      team: ticket.team || "support",
+      assigned_team: ticket.assigned_team || "",
     });
     setReportFile(null); setProjectDropdownOpen(false); setFieldErrors({});
     setDialogOpen(true);
@@ -279,7 +283,7 @@ export default function SupportTickets() {
   const logChanges = async (ticketId: string, oldTicket: Ticket | null, newData: Record<string, any>) => {
     if (!oldTicket || !user) return;
     const fields = ["status", "priority", "department", "subject", "description", "resolution",
-      "issue_reported_via", "case_type", "category", "sub_category", "assigned_engineer_id", "client_name", "client_email"];
+      "issue_reported_via", "case_type", "category", "sub_category", "assigned_engineer_id", "client_name", "client_email", "team", "assigned_team"];
     const logs: any[] = [];
     for (const f of fields) {
       const oldVal = (oldTicket as any)[f] || "";
@@ -332,6 +336,8 @@ export default function SupportTickets() {
       category: form.category, sub_category: form.sub_category || null,
       assigned_engineer_id: form.assigned_engineer_id || null,
       report_file_url: reportUrl,
+      team: form.team || "support",
+      assigned_team: form.assigned_team || null,
     };
 
     if (editingTicket) {
@@ -400,8 +406,8 @@ export default function SupportTickets() {
             <TicketIcon className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Support Tickets</h1>
-            <p className="text-sm text-muted-foreground">Create and track customer issues</p>
+            <h1 className="text-2xl font-bold tracking-tight">Tickets</h1>
+            <p className="text-sm text-muted-foreground">Create and track support & engineering issues</p>
           </div>
         </div>
         {canCreate && (
@@ -465,9 +471,10 @@ export default function SupportTickets() {
                 <TableHeader>
                   <TableRow className="bg-muted/30">
                     <TableHead className="font-semibold">Ticket ID</TableHead>
-                    <TableHead className="font-semibold">Subject</TableHead>
+                     <TableHead className="font-semibold">Subject</TableHead>
                     <TableHead className="font-semibold">Project</TableHead>
                     <TableHead className="font-semibold">Client</TableHead>
+                    <TableHead className="font-semibold">Team</TableHead>
                     <TableHead className="font-semibold">Priority</TableHead>
                     <TableHead className="font-semibold">Status</TableHead>
                     <TableHead className="font-semibold">Assigned To</TableHead>
@@ -482,6 +489,7 @@ export default function SupportTickets() {
                       <TableCell className="font-medium max-w-[200px] truncate">{t.subject}</TableCell>
                       <TableCell className="text-sm">{projectNameMap[t.project_id] || "—"}</TableCell>
                       <TableCell className="text-sm">{t.client_name}</TableCell>
+                      <TableCell><Badge variant="outline" className={t.team === "engineering" ? "border-info/30 bg-info/10 text-info" : "border-primary/30 bg-primary/10 text-primary"}>{t.team === "engineering" ? "Engineering" : "Support"}</Badge></TableCell>
                       <TableCell><Badge variant="outline" className={PRIORITY_STYLES[t.priority] || ""}>{t.priority}</Badge></TableCell>
                       <TableCell><Badge variant="outline" className={STATUS_STYLES[t.status] || ""}>{t.status}</Badge></TableCell>
                       <TableCell className="text-sm">{profileMap[t.assigned_engineer_id || ""] || "—"}</TableCell>
@@ -510,7 +518,7 @@ export default function SupportTickets() {
           <DialogHeader className="shrink-0 border-b px-6 py-4">
             <DialogTitle className="flex items-center gap-2">
               <TicketIcon className="h-5 w-5 text-primary" />
-              {editingTicket ? `Edit ${editingTicket.ticket_id}` : "New Support Ticket"}
+              {editingTicket ? `Edit ${editingTicket.ticket_id}` : "New Ticket"}
             </DialogTitle>
             <DialogDescription>Fill all mandatory fields marked with *</DialogDescription>
           </DialogHeader>
@@ -640,6 +648,16 @@ export default function SupportTickets() {
                 <NativeSelect value={form.assigned_engineer_id} onChange={v => setForm(f => ({ ...f, assigned_engineer_id: v }))} placeholder="Select engineer"
                   options={engineers.map(e => ({ value: e.id, label: `${e.first_name} ${e.last_name}`.trim() || e.email }))} />
               </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Team <span className="text-destructive">*</span></Label>
+                <NativeSelect value={form.team} onChange={v => setForm(f => ({ ...f, team: v }))} placeholder="Select team"
+                  options={[{ value: "support", label: "Support" }, { value: "engineering", label: "Engineering" }]} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Assigned Team</Label>
+                <NativeSelect value={form.assigned_team} onChange={v => setForm(f => ({ ...f, assigned_team: v }))} placeholder="Select assigned team"
+                  options={[{ value: "", label: "Same as Team" }, { value: "support", label: "Support" }, { value: "engineering", label: "Engineering" }]} />
+              </div>
             </div>
 
             {/* Text fields */}
@@ -719,6 +737,8 @@ export default function SupportTickets() {
                       ["Category", viewingTicket.category],
                       ["Sub Category", viewingTicket.sub_category],
                       ["Admin Email", viewingTicket.admin_email],
+                      ["Team", viewingTicket.team === "engineering" ? "Engineering" : "Support"],
+                      ["Assigned Team", viewingTicket.assigned_team === "engineering" ? "Engineering" : viewingTicket.assigned_team === "support" ? "Support" : "Same as Team"],
                       ["Assigned To", profileMap[viewingTicket.assigned_engineer_id || ""]],
                       ["Created By", profileMap[viewingTicket.created_by]],
                       ["Created", format(new Date(viewingTicket.created_at), "dd MMM yyyy HH:mm:ss")],

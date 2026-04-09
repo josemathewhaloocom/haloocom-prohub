@@ -25,6 +25,8 @@ const ROLE_LABELS: Record<string, string> = {
   accounts_manager: "Accounts Manager",
   engineer: "Engineer",
   ceo: "CEO",
+  support_manager: "Support Manager",
+  engineering_manager: "Engineering Manager",
 };
 
 const ROLE_COLORS: Record<string, string> = {
@@ -35,6 +37,8 @@ const ROLE_COLORS: Record<string, string> = {
   accounts_manager: "bg-warning/10 text-warning border-warning/20",
   engineer: "bg-info/10 text-info border-info/20",
   ceo: "bg-muted text-muted-foreground border-border",
+  support_manager: "bg-primary/10 text-primary border-primary/20",
+  engineering_manager: "bg-info/10 text-info border-info/20",
 };
 
 interface UserWithRoles {

@@ -42,8 +42,8 @@ const TICKET_CONFIG_FIELDS = [
 ];
 
 export default function SettingsPage() {
-  const { user, isProjectManager, isSupportManager } = useAuth();
-  const canManageTicketConfig = isProjectManager || isSupportManager;
+  const { user, isProjectManager, isSupportManager, isEngineeringManager } = useAuth();
+  const canManageTicketConfig = isProjectManager || isSupportManager || isEngineeringManager;
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [saving, setSaving] = useState(false);
