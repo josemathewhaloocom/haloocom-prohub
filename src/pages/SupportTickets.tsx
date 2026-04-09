@@ -336,6 +336,8 @@ export default function SupportTickets() {
       category: form.category, sub_category: form.sub_category || null,
       assigned_engineer_id: form.assigned_engineer_id || null,
       report_file_url: reportUrl,
+      team: form.team || "support",
+      assigned_team: form.assigned_team || null,
     };
 
     if (editingTicket) {
@@ -404,8 +406,8 @@ export default function SupportTickets() {
             <TicketIcon className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Support Tickets</h1>
-            <p className="text-sm text-muted-foreground">Create and track customer issues</p>
+            <h1 className="text-2xl font-bold tracking-tight">Tickets</h1>
+            <p className="text-sm text-muted-foreground">Create and track support & engineering issues</p>
           </div>
         </div>
         {canCreate && (
@@ -514,7 +516,7 @@ export default function SupportTickets() {
           <DialogHeader className="shrink-0 border-b px-6 py-4">
             <DialogTitle className="flex items-center gap-2">
               <TicketIcon className="h-5 w-5 text-primary" />
-              {editingTicket ? `Edit ${editingTicket.ticket_id}` : "New Support Ticket"}
+              {editingTicket ? `Edit ${editingTicket.ticket_id}` : "New Ticket"}
             </DialogTitle>
             <DialogDescription>Fill all mandatory fields marked with *</DialogDescription>
           </DialogHeader>
