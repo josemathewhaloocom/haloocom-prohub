@@ -471,9 +471,10 @@ export default function SupportTickets() {
                 <TableHeader>
                   <TableRow className="bg-muted/30">
                     <TableHead className="font-semibold">Ticket ID</TableHead>
-                    <TableHead className="font-semibold">Subject</TableHead>
+                     <TableHead className="font-semibold">Subject</TableHead>
                     <TableHead className="font-semibold">Project</TableHead>
                     <TableHead className="font-semibold">Client</TableHead>
+                    <TableHead className="font-semibold">Team</TableHead>
                     <TableHead className="font-semibold">Priority</TableHead>
                     <TableHead className="font-semibold">Status</TableHead>
                     <TableHead className="font-semibold">Assigned To</TableHead>
@@ -488,6 +489,7 @@ export default function SupportTickets() {
                       <TableCell className="font-medium max-w-[200px] truncate">{t.subject}</TableCell>
                       <TableCell className="text-sm">{projectNameMap[t.project_id] || "—"}</TableCell>
                       <TableCell className="text-sm">{t.client_name}</TableCell>
+                      <TableCell><Badge variant="outline" className={t.team === "engineering" ? "border-info/30 bg-info/10 text-info" : "border-primary/30 bg-primary/10 text-primary"}>{t.team === "engineering" ? "Engineering" : "Support"}</Badge></TableCell>
                       <TableCell><Badge variant="outline" className={PRIORITY_STYLES[t.priority] || ""}>{t.priority}</Badge></TableCell>
                       <TableCell><Badge variant="outline" className={STATUS_STYLES[t.status] || ""}>{t.status}</Badge></TableCell>
                       <TableCell className="text-sm">{profileMap[t.assigned_engineer_id || ""] || "—"}</TableCell>
@@ -735,6 +737,8 @@ export default function SupportTickets() {
                       ["Category", viewingTicket.category],
                       ["Sub Category", viewingTicket.sub_category],
                       ["Admin Email", viewingTicket.admin_email],
+                      ["Team", viewingTicket.team === "engineering" ? "Engineering" : "Support"],
+                      ["Assigned Team", viewingTicket.assigned_team === "engineering" ? "Engineering" : viewingTicket.assigned_team === "support" ? "Support" : "Same as Team"],
                       ["Assigned To", profileMap[viewingTicket.assigned_engineer_id || ""]],
                       ["Created By", profileMap[viewingTicket.created_by]],
                       ["Created", format(new Date(viewingTicket.created_at), "dd MMM yyyy HH:mm:ss")],
