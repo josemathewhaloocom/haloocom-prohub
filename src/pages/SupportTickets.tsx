@@ -34,6 +34,7 @@ interface Ticket {
   assigned_engineer_id: string | null; created_by: string;
   report_file_url: string | null;
   created_at: string; updated_at: string; closed_at: string | null;
+  team: string; assigned_team: string | null;
 }
 interface TicketLog {
   id: string; ticket_id: string; field_name: string;
@@ -94,12 +95,13 @@ const emptyForm = {
   admin_email: "", status: "Open", priority: "High", department: "",
   subject: "", description: "", resolution: "", issue_reported_via: "",
   case_type: "", category: "", sub_category: "", assigned_engineer_id: "",
+  team: "support", assigned_team: "",
 };
 
 // ═══════════════════════════════════════════════════════════════════
 export default function SupportTickets() {
-  const { user, isProjectManager, isEngineer, isSupportManager } = useAuth();
-  const canManageTickets = isProjectManager || isSupportManager;
+  const { user, isProjectManager, isEngineer, isSupportManager, isEngineeringManager } = useAuth();
+  const canManageTickets = isProjectManager || isSupportManager || isEngineeringManager;
   const canCreate = canManageTickets || isEngineer;
   const canDelete = canManageTickets;
 
