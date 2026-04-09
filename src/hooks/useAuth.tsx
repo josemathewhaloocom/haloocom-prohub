@@ -18,6 +18,7 @@ interface AuthContextType {
   isEngineer: boolean;
   isCEO: boolean;
   isSupportManager: boolean;
+  isEngineeringManager: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string, firstName: string, lastName: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
@@ -94,12 +95,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isEngineer = roles.includes("engineer");
   const isCEO = roles.includes("ceo");
   const isSupportManager = roles.includes("support_manager" as any);
+  const isEngineeringManager = roles.includes("engineering_manager" as any);
 
   return (
     <AuthContext.Provider value={{
       user, session, roles, loading, signIn, signUp, signOut,
       isProjectManager, isAdminManager, isSales, isSalesManager,
-      isAccountsManager, isEngineer, isCEO, isSupportManager,
+      isAccountsManager, isEngineer, isCEO, isSupportManager, isEngineeringManager,
     }}>
       {children}
     </AuthContext.Provider>
