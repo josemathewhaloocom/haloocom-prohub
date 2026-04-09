@@ -656,6 +656,7 @@ export default function SupportTickets() {
                 <NativeSelect value={form.assigned_team} onChange={v => setForm(f => ({ ...f, assigned_team: v }))} placeholder="Select assigned team"
                   options={[{ value: "", label: "Same as Team" }, { value: "support", label: "Support" }, { value: "engineering", label: "Engineering" }]} />
               </div>
+            </div>
 
             {/* Text fields */}
             <div className="space-y-3">
