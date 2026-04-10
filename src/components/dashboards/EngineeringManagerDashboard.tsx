@@ -146,20 +146,6 @@ export default function EngineeringManagerDashboard() {
       </div>
 
       {/* Cross-team summary */}
-      {stats.crossTeam > 0 && (
-        <Card>
-          <CardContent className="p-5">
-            <div className="flex items-center gap-3">
-              <div className="rounded-lg bg-info/10 p-2.5 text-info"><Users className="h-5 w-5" /></div>
-              <div>
-                <p className="text-sm font-medium">Cross-Team Handoffs</p>
-                <p className="text-2xl font-bold">{stats.crossTeam}</p>
-                <p className="text-xs text-muted-foreground">Tickets transferred between Support ↔ Engineering</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
