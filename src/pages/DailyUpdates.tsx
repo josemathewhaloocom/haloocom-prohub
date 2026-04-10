@@ -23,7 +23,8 @@ interface UpdateWithProject extends DailyUpdate {
 }
 
 export default function DailyUpdates() {
-  const { user, isProjectManager, isEngineer } = useAuth();
+  const { user, isProjectManager, isSupportEngineer, isEngineering } = useAuth();
+  const isAnyEngineer = isSupportEngineer || isEngineering;
   const [updates, setUpdates] = useState<UpdateWithProject[]>([]);
   const [projects, setProjects] = useState<{ id: string; name: string }[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -95,7 +96,7 @@ export default function DailyUpdates() {
   useEffect(() => {
     fetchUpdates();
     fetchProjects();
-  }, [isProjectManager, isEngineer, user]);
+  }, [isProjectManager, isAnyEngineer, user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -169,7 +170,7 @@ export default function DailyUpdates() {
   const updateProjects = [...new Map(updates.map((u) => [u.project_id, u.project_name])).entries()];
 
   // Engineers (including PM with engineer role) can submit updates
-  const canSubmit = isEngineer && projects.length > 0;
+  const canSubmit = isAnyEngineer && projects.length > 0;
 
   return (
     <div className="space-y-6">
@@ -177,7 +178,7 @@ export default function DailyUpdates() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Daily Updates</h1>
           <p className="text-muted-foreground">
-            {isProjectManager && !isEngineer ? "View all engineer progress updates." : "Submit and track your daily progress."}
+            {isProjectManager && !isAnyEngineer ? "View all engineer progress updates." : "Submit and track your daily progress."}
           </p>
         </div>
         {canSubmit && (
@@ -272,7 +273,7 @@ export default function DailyUpdates() {
       {filtered.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
-            No updates found. {isEngineer && "Submit your first daily update!"}
+            No updates found. {isAnyEngineer && "Submit your first daily update!"}
           </CardContent>
         </Card>
       ) : (

@@ -42,11 +42,11 @@ export default function EngineeringManagerDashboard() {
       setAllTickets(all);
       // Filter to engineering team tickets or tickets assigned to engineering team
       const engIds = new Set(
-        ((roles as any[]) ?? []).filter(r => r.role === "engineer" || r.role === "engineering_manager").map(r => r.user_id)
+        ((roles as any[]) ?? []).filter(r => r.role === "engineering" || r.role === "engineering_manager").map(r => r.user_id)
       );
       setEngineerIds(engIds);
       setTickets(all.filter((t: any) =>
-        t.team === "engineering" || t.assigned_team === "engineering"
+        t.team === "engineering"
       ));
       const m: Record<string, any> = {};
       (profs ?? []).forEach(p => { m[p.id] = p; });
@@ -63,8 +63,7 @@ export default function EngineeringManagerDashboard() {
     const onHold = tickets.filter(t => t.status === "Hold").length;
     const closed = tickets.filter(t => t.status === "Closed").length;
     const critical = tickets.filter(t => t.priority === "Critical" && t.status !== "Closed").length;
-    const crossTeam = tickets.filter(t => t.assigned_team && t.assigned_team !== t.team).length;
-    return { total, open, inProgress, onHold, closed, critical, crossTeam };
+    return { total, open, inProgress, onHold, closed, critical };
   }, [tickets]);
 
   const statusPie = useMemo(() => {
@@ -147,20 +146,6 @@ export default function EngineeringManagerDashboard() {
       </div>
 
       {/* Cross-team summary */}
-      {stats.crossTeam > 0 && (
-        <Card>
-          <CardContent className="p-5">
-            <div className="flex items-center gap-3">
-              <div className="rounded-lg bg-info/10 p-2.5 text-info"><Users className="h-5 w-5" /></div>
-              <div>
-                <p className="text-sm font-medium">Cross-Team Handoffs</p>
-                <p className="text-2xl font-bold">{stats.crossTeam}</p>
-                <p className="text-xs text-muted-foreground">Tickets transferred between Support ↔ Engineering</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>

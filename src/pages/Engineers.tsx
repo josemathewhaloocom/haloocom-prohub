@@ -38,10 +38,12 @@ export default function Engineers() {
   const [savingEdit, setSavingEdit] = useState(false);
 
   const fetchEngineers = async () => {
-    const { data: roles } = await supabase.from("user_roles").select("user_id").eq("role", "engineer");
+    const { data: roles } = await supabase.from("user_roles").select("user_id, role").in("role", ["support_engineer", "engineering"] as any);
     if (!roles?.length) { setEngineers([]); return; }
 
     const ids = roles.map((r) => r.user_id);
+    const roleMap = new Map<string, string>();
+    roles.forEach(r => roleMap.set(r.user_id, r.role));
     const { data: profiles } = await supabase.from("profiles").select("*").in("id", ids);
     const { data: assignments } = await supabase.from("project_assignments").select("engineer_id, project_id");
     const { data: projects } = await supabase.from("projects").select("id, status, start_date, deadline");
@@ -105,7 +107,7 @@ export default function Engineers() {
     // Only remove the engineer role, keep other roles intact
     await supabase.from("project_assignments").delete().eq("engineer_id", engId);
     await supabase.from("daily_updates").delete().eq("engineer_id", engId);
-    const { error } = await supabase.from("user_roles").delete().eq("user_id", engId).eq("role", "engineer" as any);
+    const { error } = await supabase.from("user_roles").delete().eq("user_id", engId).in("role", ["support_engineer", "engineering"] as any);
     if (error) { toast.error(error.message); return; }
     toast.success("Engineer role removed!");
     fetchEngineers();

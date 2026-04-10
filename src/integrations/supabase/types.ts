@@ -656,7 +656,6 @@ export type Database = {
         Row: {
           admin_email: string | null
           assigned_engineer_id: string | null
-          assigned_team: string | null
           case_type: string
           category: string
           client_email: string | null
@@ -683,7 +682,6 @@ export type Database = {
         Insert: {
           admin_email?: string | null
           assigned_engineer_id?: string | null
-          assigned_team?: string | null
           case_type: string
           category: string
           client_email?: string | null
@@ -710,7 +708,6 @@ export type Database = {
         Update: {
           admin_email?: string | null
           assigned_engineer_id?: string | null
-          assigned_team?: string | null
           case_type?: string
           category?: string
           client_email?: string | null
@@ -810,6 +807,8 @@ export type Database = {
         | "ceo"
         | "support_manager"
         | "engineering_manager"
+        | "support_engineer"
+        | "engineering"
       approval_status: "pending" | "approved" | "rejected"
       milestone_status: "pending" | "in_progress" | "completed"
       project_priority: "low" | "medium" | "high" | "critical"
@@ -966,6 +965,8 @@ export const Constants = {
         "ceo",
         "support_manager",
         "engineering_manager",
+        "support_engineer",
+        "engineering",
       ],
       approval_status: ["pending", "approved", "rejected"],
       milestone_status: ["pending", "in_progress", "completed"],

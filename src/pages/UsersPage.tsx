@@ -23,7 +23,8 @@ const ROLE_LABELS: Record<string, string> = {
   sales: "Sales",
   sales_manager: "Sales Manager",
   accounts_manager: "Accounts Manager",
-  engineer: "Engineer",
+  support_engineer: "Support & Implementation Engineer",
+  engineering: "Engineering",
   ceo: "CEO",
   support_manager: "Support Manager",
   engineering_manager: "Engineering Manager",
@@ -35,7 +36,8 @@ const ROLE_COLORS: Record<string, string> = {
   sales: "bg-success/10 text-success border-success/20",
   sales_manager: "bg-success/10 text-success border-success/20",
   accounts_manager: "bg-warning/10 text-warning border-warning/20",
-  engineer: "bg-info/10 text-info border-info/20",
+  support_engineer: "bg-info/10 text-info border-info/20",
+  engineering: "bg-chart-3/10 text-chart-3 border-chart-3/20",
   ceo: "bg-muted text-muted-foreground border-border",
   support_manager: "bg-primary/10 text-primary border-primary/20",
   engineering_manager: "bg-info/10 text-info border-info/20",
@@ -155,8 +157,8 @@ export default function UsersPage() {
 
   const updateReportingManager = async (userId: string, managerId: string, userRoles: string[]) => {
     const isSales = userRoles.includes("sales");
-    const isEngineer = userRoles.includes("engineer");
-    const relType = isSales ? "sales_to_sales_manager" : isEngineer ? "engineer_to_project_manager" : null;
+    const isEngineerRole = userRoles.includes("support_engineer") || userRoles.includes("engineering");
+    const relType = isSales ? "sales_to_sales_manager" : isEngineerRole ? "engineer_to_project_manager" : null;
     if (!relType) return;
 
     if (managerId === "none") {
