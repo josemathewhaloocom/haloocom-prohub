@@ -61,7 +61,8 @@ interface FaqItem {
 }
 
 export default function FAQPage() {
-  const { user, isProjectManager, isSupportManager, isSalesManager, isEngineer } = useAuth();
+  const { user, isProjectManager, isSupportManager, isSalesManager, isSupportEngineer, isEngineering } = useAuth();
+  const isAnyEngineer = isSupportEngineer || isEngineering;
   const { toast } = useToast();
   const [faqs, setFaqs] = useState<FaqItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -76,7 +77,7 @@ export default function FAQPage() {
     is_published: true,
   });
 
-  const canManageSupport = isProjectManager || isSupportManager || isEngineer;
+  const canManageSupport = isProjectManager || isSupportManager || isAnyEngineer;
   const canManageSales = isProjectManager || isSalesManager;
   const canManageCurrent = activeTab === "support_implementation" ? canManageSupport : canManageSales;
 

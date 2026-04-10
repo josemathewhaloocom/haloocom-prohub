@@ -34,7 +34,7 @@ interface Ticket {
   assigned_engineer_id: string | null; created_by: string;
   report_file_url: string | null;
   created_at: string; updated_at: string; closed_at: string | null;
-  team: string; assigned_team: string | null;
+  team: string;
 }
 interface TicketLog {
   id: string; ticket_id: string; field_name: string;
@@ -95,15 +95,24 @@ const emptyForm = {
   admin_email: "", status: "Open", priority: "High", department: "",
   subject: "", description: "", resolution: "", issue_reported_via: "",
   case_type: "", category: "", sub_category: "", assigned_engineer_id: "",
-  team: "support", assigned_team: "",
+  team: "",
 };
 
 // ═══════════════════════════════════════════════════════════════════
 export default function SupportTickets() {
-  const { user, isProjectManager, isEngineer, isSupportManager, isEngineeringManager } = useAuth();
+  const { user, roles, isProjectManager, isSupportEngineer, isEngineering, isSupportManager, isEngineeringManager } = useAuth();
+  const isAnyEngineer = isSupportEngineer || isEngineering;
   const canManageTickets = isProjectManager || isSupportManager || isEngineeringManager;
-  const canCreate = canManageTickets || isEngineer;
+  const canCreate = canManageTickets || isAnyEngineer;
   const canDelete = canManageTickets;
+  const isManager = isProjectManager || isSupportManager || isEngineeringManager;
+
+  // Auto-determine team based on role
+  const getAutoTeam = () => {
+    if (isEngineering) return "engineering";
+    if (isSupportEngineer) return "support";
+    return ""; // managers pick manually
+  };
 
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [configs, setConfigs] = useState<TicketConfig[]>([]);
@@ -161,9 +170,9 @@ export default function SupportTickets() {
     setTickets((ticketRes.data as any) ?? []);
     setConfigs((configRes.data as any) ?? []);
 
-    // Build engineer list from roles
+    // Build engineer list from roles (both support_engineer and engineering)
     const engineerIds = new Set(
-      ((roleRes.data as any[]) ?? []).filter(r => r.role === "engineer").map(r => r.user_id),
+      ((roleRes.data as any[]) ?? []).filter(r => r.role === "support_engineer" || r.role === "engineering").map(r => r.user_id),
     );
 
     const rawProfiles = ((profileRes.data ?? []) as any[]).map(p => ({
@@ -237,7 +246,8 @@ export default function SupportTickets() {
   // ── CRUD ──────────────────────────────────────────────────────
   const openCreate = () => {
     setEditingTicket(null);
-    setForm({ ...emptyForm, assigned_engineer_id: user?.id || "" });
+    const autoTeam = getAutoTeam();
+    setForm({ ...emptyForm, assigned_engineer_id: user?.id || "", team: autoTeam });
     setProjectSearch(""); setProjectDropdownOpen(false);
     setReportFile(null); setFieldErrors({});
     setDialogOpen(true);
@@ -261,7 +271,6 @@ export default function SupportTickets() {
       sub_category: ticket.sub_category || "",
       assigned_engineer_id: ticket.assigned_engineer_id || "",
       team: ticket.team || "support",
-      assigned_team: ticket.assigned_team || "",
     });
     setReportFile(null); setProjectDropdownOpen(false); setFieldErrors({});
     setDialogOpen(true);
@@ -283,7 +292,7 @@ export default function SupportTickets() {
   const logChanges = async (ticketId: string, oldTicket: Ticket | null, newData: Record<string, any>) => {
     if (!oldTicket || !user) return;
     const fields = ["status", "priority", "department", "subject", "description", "resolution",
-      "issue_reported_via", "case_type", "category", "sub_category", "assigned_engineer_id", "client_name", "client_email", "team", "assigned_team"];
+      "issue_reported_via", "case_type", "category", "sub_category", "assigned_engineer_id", "client_name", "client_email", "team"];
     const logs: any[] = [];
     for (const f of fields) {
       const oldVal = (oldTicket as any)[f] || "";
@@ -337,7 +346,6 @@ export default function SupportTickets() {
       assigned_engineer_id: form.assigned_engineer_id || null,
       report_file_url: reportUrl,
       team: form.team || "support",
-      assigned_team: form.assigned_team || null,
     };
 
     if (editingTicket) {
@@ -648,16 +656,13 @@ export default function SupportTickets() {
                 <NativeSelect value={form.assigned_engineer_id} onChange={v => setForm(f => ({ ...f, assigned_engineer_id: v }))} placeholder="Select engineer"
                   options={engineers.map(e => ({ value: e.id, label: `${e.first_name} ${e.last_name}`.trim() || e.email }))} />
               </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Team <span className="text-destructive">*</span></Label>
-                <NativeSelect value={form.team} onChange={v => setForm(f => ({ ...f, team: v }))} placeholder="Select team"
-                  options={[{ value: "support", label: "Support" }, { value: "engineering", label: "Engineering" }]} />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Assigned Team</Label>
-                <NativeSelect value={form.assigned_team} onChange={v => setForm(f => ({ ...f, assigned_team: v }))} placeholder="Select assigned team"
-                  options={[{ value: "", label: "Same as Team" }, { value: "support", label: "Support" }, { value: "engineering", label: "Engineering" }]} />
-              </div>
+              {isManager && (
+                <div className="space-y-1">
+                  <Label className="text-xs">Team <span className="text-destructive">*</span></Label>
+                  <NativeSelect value={form.team} onChange={v => setForm(f => ({ ...f, team: v }))} placeholder="Select team"
+                    options={[{ value: "support", label: "Support" }, { value: "engineering", label: "Engineering" }]} />
+                </div>
+              )}
             </div>
 
             {/* Text fields */}
@@ -738,7 +743,6 @@ export default function SupportTickets() {
                       ["Sub Category", viewingTicket.sub_category],
                       ["Admin Email", viewingTicket.admin_email],
                       ["Team", viewingTicket.team === "engineering" ? "Engineering" : "Support"],
-                      ["Assigned Team", viewingTicket.assigned_team === "engineering" ? "Engineering" : viewingTicket.assigned_team === "support" ? "Support" : "Same as Team"],
                       ["Assigned To", profileMap[viewingTicket.assigned_engineer_id || ""]],
                       ["Created By", profileMap[viewingTicket.created_by]],
                       ["Created", format(new Date(viewingTicket.created_at), "dd MMM yyyy HH:mm:ss")],

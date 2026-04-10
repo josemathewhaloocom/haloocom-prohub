@@ -20,7 +20,8 @@ import { Button } from "@/components/ui/button";
 import { useState } from "react";
 
 export default function AppSidebar() {
-  const { signOut, user, isProjectManager, isEngineer, isSupportManager, isSalesManager, isEngineeringManager } = useAuth();
+  const { signOut, user, isProjectManager, isSupportEngineer, isEngineering, isSupportManager, isSalesManager, isEngineeringManager } = useAuth();
+  const isAnyEngineer = isSupportEngineer || isEngineering;
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
 
@@ -33,9 +34,9 @@ export default function AppSidebar() {
     { to: "/", label: "Dashboard", icon: LayoutDashboard, visible: true },
     { to: "/projects", label: "Projects", icon: FolderKanban, visible: true },
     { to: "/engineers", label: "Engineers", icon: Users, visible: isProjectManager },
-    { to: "/updates", label: "Daily Updates", icon: ClipboardList, visible: isProjectManager || isEngineer },
+    { to: "/updates", label: "Daily Updates", icon: ClipboardList, visible: isProjectManager || isAnyEngineer },
     { to: "/documents", label: "Documents", icon: FileText, visible: true },
-    { to: "/tickets", label: "Tickets", icon: TicketIcon, visible: isProjectManager || isEngineer || isSupportManager || isEngineeringManager },
+    { to: "/tickets", label: "Tickets", icon: TicketIcon, visible: isProjectManager || isAnyEngineer || isSupportManager || isEngineeringManager },
     { to: "/ticket-reports", label: "Ticket Reports", icon: BarChart3, visible: isProjectManager || isSupportManager || isEngineeringManager },
     { to: "/faq", label: "FAQ", icon: HelpCircle, visible: true },
     { to: "/users", label: "Users", icon: UserCog, visible: isProjectManager },
