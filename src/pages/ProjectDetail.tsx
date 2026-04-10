@@ -197,8 +197,8 @@ async function sendWorkflowEmail(targetRole: string, subject: string, html: stri
 export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { isProjectManager, isSupportEngineer, isAnyEngineering, isAdminManager, isSales, isSalesManager, isAccountsManager, isCEO, user } = useAuth();
-  const isAnyEngineer = isSupportEngineer || isAnyEngineering;
+  const { isProjectManager, isSupportEngineer, isEngineering, isAdminManager, isSales, isSalesManager, isAccountsManager, isCEO, user } = useAuth();
+  const isAnyEngineer = isSupportEngineer || isEngineering;
   const [project, setProject] = useState<Project | null>(null);
   const [productName, setProductName] = useState<string | null>(null);
   const [assigned, setAssigned] = useState<AssignedEngineer[]>([]);

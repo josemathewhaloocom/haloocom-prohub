@@ -23,8 +23,8 @@ interface UpdateWithProject extends DailyUpdate {
 }
 
 export default function DailyUpdates() {
-  const { user, isProjectManager, isSupportEngineer, isAnyEngineering } = useAuth();
-  const isAnyEngineer = isSupportEngineer || isAnyEngineering;
+  const { user, isProjectManager, isSupportEngineer, isEngineering } = useAuth();
+  const isAnyEngineer = isSupportEngineer || isEngineering;
   const [updates, setUpdates] = useState<UpdateWithProject[]>([]);
   const [projects, setProjects] = useState<{ id: string; name: string }[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
