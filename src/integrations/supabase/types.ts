@@ -656,7 +656,6 @@ export type Database = {
         Row: {
           admin_email: string | null
           assigned_engineer_id: string | null
-          assigned_team: string | null
           case_type: string
           category: string
           client_email: string | null
@@ -683,7 +682,6 @@ export type Database = {
         Insert: {
           admin_email?: string | null
           assigned_engineer_id?: string | null
-          assigned_team?: string | null
           case_type: string
           category: string
           client_email?: string | null
@@ -710,7 +708,6 @@ export type Database = {
         Update: {
           admin_email?: string | null
           assigned_engineer_id?: string | null
-          assigned_team?: string | null
           case_type?: string
           category?: string
           client_email?: string | null
