@@ -197,8 +197,8 @@ async function sendWorkflowEmail(targetRole: string, subject: string, html: stri
 export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { isProjectManager, isSupportEngineer, isEngineering, isAdminManager, isSales, isSalesManager, isAccountsManager, isCEO, user } = useAuth();
-  const isAnyEngineer = isSupportEngineer || isEngineering;
+  const { isProjectManager, isSupportEngineer, isAnyEngineering, isAdminManager, isSales, isSalesManager, isAccountsManager, isCEO, user } = useAuth();
+  const isAnyEngineer = isSupportEngineer || isAnyEngineering;
   const [project, setProject] = useState<Project | null>(null);
   const [productName, setProductName] = useState<string | null>(null);
   const [assigned, setAssigned] = useState<AssignedEngineer[]>([]);
@@ -246,17 +246,17 @@ export default function ProjectDetail() {
     const types: { value: string; label: string }[] = [];
     if (isSales || isProjectManager) types.push(...SALES_DOC_TYPES);
     if (isAdminManager || isProjectManager) types.push(...ADMIN_MANAGER_DOC_TYPES);
-    if (isEngineer || isProjectManager) types.push(...ENGINEER_DOC_TYPES);
+    if (isAnyEngineer || isProjectManager) types.push(...ENGINEER_DOC_TYPES);
     if (isProjectManager) types.push({ value: "other", label: "Other" });
     const seen = new Set<string>();
     return types.filter(t => { if (seen.has(t.value)) return false; seen.add(t.value); return true; });
   };
 
   const canEdit = isProjectManager || isSales || isAdminManager;
-  const canUploadDocs = isSales || isAdminManager || isEngineer || isProjectManager;
+  const canUploadDocs = isSales || isAdminManager || isAnyEngineer || isProjectManager;
   const canManageStatus = isProjectManager;
   const canAssignEngineer = isProjectManager;
-  const canSubmitUpdate = isEngineer || isProjectManager;
+  const canSubmitUpdate = isAnyEngineer || isProjectManager;
 
   // Who can approve/reject a given document?
   const canApproveDoc = (doc: ProjectDocument) => {
