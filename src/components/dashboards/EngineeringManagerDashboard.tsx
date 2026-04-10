@@ -63,8 +63,7 @@ export default function EngineeringManagerDashboard() {
     const onHold = tickets.filter(t => t.status === "Hold").length;
     const closed = tickets.filter(t => t.status === "Closed").length;
     const critical = tickets.filter(t => t.priority === "Critical" && t.status !== "Closed").length;
-    const crossTeam = tickets.filter(t => t.assigned_team && t.assigned_team !== t.team).length;
-    return { total, open, inProgress, onHold, closed, critical, crossTeam };
+    return { total, open, inProgress, onHold, closed, critical };
   }, [tickets]);
 
   const statusPie = useMemo(() => {
