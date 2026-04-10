@@ -42,11 +42,11 @@ export default function EngineeringManagerDashboard() {
       setAllTickets(all);
       // Filter to engineering team tickets or tickets assigned to engineering team
       const engIds = new Set(
-        ((roles as any[]) ?? []).filter(r => r.role === "engineer" || r.role === "engineering_manager").map(r => r.user_id)
+        ((roles as any[]) ?? []).filter(r => r.role === "engineering" || r.role === "engineering_manager").map(r => r.user_id)
       );
       setEngineerIds(engIds);
       setTickets(all.filter((t: any) =>
-        t.team === "engineering" || t.assigned_team === "engineering"
+        t.team === "engineering"
       ));
       const m: Record<string, any> = {};
       (profs ?? []).forEach(p => { m[p.id] = p; });
