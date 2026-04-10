@@ -15,7 +15,8 @@ interface AuthContextType {
   isSales: boolean;
   isSalesManager: boolean;
   isAccountsManager: boolean;
-  isEngineer: boolean;
+  isSupportEngineer: boolean;
+  isEngineering: boolean;
   isCEO: boolean;
   isSupportManager: boolean;
   isEngineeringManager: boolean;
@@ -92,7 +93,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isSales = roles.includes("sales");
   const isSalesManager = roles.includes("sales_manager");
   const isAccountsManager = roles.includes("accounts_manager");
-  const isEngineer = roles.includes("engineer");
+  const isSupportEngineer = roles.includes("support_engineer" as any);
+  const isEngineering = roles.includes("engineering" as any);
   const isCEO = roles.includes("ceo");
   const isSupportManager = roles.includes("support_manager" as any);
   const isEngineeringManager = roles.includes("engineering_manager" as any);
@@ -101,7 +103,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <AuthContext.Provider value={{
       user, session, roles, loading, signIn, signUp, signOut,
       isProjectManager, isAdminManager, isSales, isSalesManager,
-      isAccountsManager, isEngineer, isCEO, isSupportManager, isEngineeringManager,
+      isAccountsManager, isSupportEngineer, isEngineering, isCEO, isSupportManager, isEngineeringManager,
     }}>
       {children}
     </AuthContext.Provider>
