@@ -810,6 +810,8 @@ export type Database = {
         | "ceo"
         | "support_manager"
         | "engineering_manager"
+        | "support_engineer"
+        | "engineering"
       approval_status: "pending" | "approved" | "rejected"
       milestone_status: "pending" | "in_progress" | "completed"
       project_priority: "low" | "medium" | "high" | "critical"
@@ -966,6 +968,8 @@ export const Constants = {
         "ceo",
         "support_manager",
         "engineering_manager",
+        "support_engineer",
+        "engineering",
       ],
       approval_status: ["pending", "approved", "rejected"],
       milestone_status: ["pending", "in_progress", "completed"],
