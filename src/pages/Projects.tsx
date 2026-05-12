@@ -87,6 +87,11 @@ export default function Projects() {
   const [productMap, setProductMap] = useState<Record<string, string>>({});
   const [engineerMap, setEngineerMap] = useState<Record<string, string>>({});
 
+  // Dynamic config from PM
+  const [customFields, setCustomFields] = useState<Array<{ id: string; field_name: string; field_type: string; is_required: boolean; sort_order: number; dropdown_options?: any }>>([]);
+  const [dropdownConfig, setDropdownConfig] = useState<Array<{ field_name: string; field_value: string; sort_order: number; is_active: boolean }>>([]);
+  const [customValues, setCustomValues] = useState<Record<string, any>>({});
+
   const canCreate = isProjectManager || isSales;
   const canDelete = isProjectManager;
 
