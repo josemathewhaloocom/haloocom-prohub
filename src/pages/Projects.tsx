@@ -120,16 +120,39 @@ export default function Projects() {
     setProducts((data as unknown as Product[]) ?? []);
   };
 
-  useEffect(() => { fetchProjects(); }, []);
+  const fetchDynamicConfig = async () => {
+    const [{ data: fields }, { data: dropdowns }] = await Promise.all([
+      supabase.from("project_field_config" as any).select("*").order("sort_order"),
+      supabase.from("project_dropdown_config" as any).select("field_name, field_value, sort_order, is_active").eq("is_active", true).order("sort_order"),
+    ]);
+    setCustomFields((fields as any) ?? []);
+    setDropdownConfig((dropdowns as any) ?? []);
+  };
+
+  useEffect(() => { fetchProjects(); fetchDynamicConfig(); }, []);
   useEffect(() => { if (dialogOpen) fetchProducts(); }, [dialogOpen]);
+
+  // Helper: admin-defined dropdown values for a given field, fallback to defaults
+  const getDropdownValues = (field: string, defaults: string[]) => {
+    const items = dropdownConfig.filter(d => d.field_name === field).map(d => d.field_value);
+    return items.length > 0 ? items : defaults;
+  };
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Validate required custom fields
+    for (const f of customFields) {
+      if (f.is_required && !customValues[f.field_name]) {
+        toast.error(`${f.field_name} is required`);
+        return;
+      }
+    }
     const { error } = await supabase.from("projects").insert({
       name: form.name!, client_name: form.client_name!, client_email: form.client_email,
       client_company: form.client_company, description: form.description, status: form.status || "draft" as any,
       priority: form.priority, start_date: form.start_date, deadline: form.deadline,
       budget: form.budget, created_by: user!.id,
+      custom_fields: customValues,
       ...(form.product_id ? { product_id: form.product_id } : {}),
       ...(form.product_version ? { product_version: form.product_version } : {}),
       ...(form.num_users != null ? { num_users: form.num_users } : {}),
