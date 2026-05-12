@@ -61,7 +61,7 @@ export default function PMDashboard() {
       const { data: projects } = await supabase.from("projects").select("*");
       setAllProjects(projects ?? []);
       if (isProjectManager) {
-        const { count } = await supabase.from("user_roles").select("*", { count: "exact", head: true }).eq("role", "engineer");
+        const { count } = await supabase.from("user_roles").select("*", { count: "exact", head: true }).in("role", ["support_engineer", "engineering"]);
         setEngineerCount(count ?? 0);
       }
     };

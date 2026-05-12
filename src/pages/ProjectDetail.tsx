@@ -293,7 +293,7 @@ export default function ProjectDetail() {
   };
 
   const fetchAvailableEngineers = async () => {
-    const { data: roles } = await supabase.from("user_roles").select("user_id").eq("role", "engineer");
+    const { data: roles } = await supabase.from("user_roles").select("user_id").in("role", ["support_engineer", "engineering"]);
     if (!roles?.length) { setAvailable([]); return; }
     const allIds = roles.map((r) => r.user_id);
     const assignedIds = assigned.map((a) => a.engineer_id);

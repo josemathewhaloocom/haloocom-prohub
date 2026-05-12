@@ -26,7 +26,7 @@ export default function CEODashboard() {
       const [{ data: p }, { data: t }, { count }] = await Promise.all([
         supabase.from("projects").select("*"),
         supabase.from("support_tickets").select("id, status, priority, created_at, closed_at"),
-        supabase.from("user_roles").select("*", { count: "exact", head: true }).eq("role", "engineer"),
+        supabase.from("user_roles").select("*", { count: "exact", head: true }).in("role", ["support_engineer", "engineering"]),
       ]);
       setProjects(p ?? []);
       setTickets(t ?? []);

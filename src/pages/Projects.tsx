@@ -87,6 +87,11 @@ export default function Projects() {
   const [productMap, setProductMap] = useState<Record<string, string>>({});
   const [engineerMap, setEngineerMap] = useState<Record<string, string>>({});
 
+  // Dynamic config from PM
+  const [customFields, setCustomFields] = useState<Array<{ id: string; field_name: string; field_type: string; is_required: boolean; sort_order: number; dropdown_options?: any }>>([]);
+  const [dropdownConfig, setDropdownConfig] = useState<Array<{ field_name: string; field_value: string; sort_order: number; is_active: boolean }>>([]);
+  const [customValues, setCustomValues] = useState<Record<string, any>>({});
+
   const canCreate = isProjectManager || isSales;
   const canDelete = isProjectManager;
 
@@ -115,16 +120,39 @@ export default function Projects() {
     setProducts((data as unknown as Product[]) ?? []);
   };
 
-  useEffect(() => { fetchProjects(); }, []);
+  const fetchDynamicConfig = async () => {
+    const [{ data: fields }, { data: dropdowns }] = await Promise.all([
+      supabase.from("project_field_config" as any).select("*").order("sort_order"),
+      supabase.from("project_dropdown_config" as any).select("field_name, field_value, sort_order, is_active").eq("is_active", true).order("sort_order"),
+    ]);
+    setCustomFields((fields as any) ?? []);
+    setDropdownConfig((dropdowns as any) ?? []);
+  };
+
+  useEffect(() => { fetchProjects(); fetchDynamicConfig(); }, []);
   useEffect(() => { if (dialogOpen) fetchProducts(); }, [dialogOpen]);
+
+  // Helper: admin-defined dropdown values for a given field, fallback to defaults
+  const getDropdownValues = (field: string, defaults: string[]) => {
+    const items = dropdownConfig.filter(d => d.field_name === field).map(d => d.field_value);
+    return items.length > 0 ? items : defaults;
+  };
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Validate required custom fields
+    for (const f of customFields) {
+      if (f.is_required && !customValues[f.field_name]) {
+        toast.error(`${f.field_name} is required`);
+        return;
+      }
+    }
     const { error } = await supabase.from("projects").insert({
       name: form.name!, client_name: form.client_name!, client_email: form.client_email,
       client_company: form.client_company, description: form.description, status: form.status || "draft" as any,
       priority: form.priority, start_date: form.start_date, deadline: form.deadline,
       budget: form.budget, created_by: user!.id,
+      custom_fields: customValues,
       ...(form.product_id ? { product_id: form.product_id } : {}),
       ...(form.product_version ? { product_version: form.product_version } : {}),
       ...(form.num_users != null ? { num_users: form.num_users } : {}),
@@ -141,6 +169,7 @@ export default function Projects() {
     toast.success("Project created!");
     setDialogOpen(false);
     setForm({ status: "draft" as any, priority: "medium" });
+    setCustomValues({});
 
     // Notify Sales Manager about new project via edge function (bypasses RLS)
     try {
@@ -206,8 +235,9 @@ export default function Projects() {
                     <Select value={form.priority || "medium"} onValueChange={(v) => setForm({ ...form, priority: v as any })}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="low">Low</SelectItem><SelectItem value="medium">Medium</SelectItem>
-                        <SelectItem value="high">High</SelectItem><SelectItem value="critical">Critical</SelectItem>
+                        {getDropdownValues("priority", ["low", "medium", "high", "critical"]).map(v => (
+                          <SelectItem key={v} value={v.toLowerCase()}>{v.charAt(0).toUpperCase() + v.slice(1)}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -215,7 +245,7 @@ export default function Projects() {
                     <Label>SLA Period</Label>
                     <Select value={form.sla_period || ""} onValueChange={(v) => setForm({ ...form, sla_period: v })}>
                       <SelectTrigger><SelectValue placeholder="Select SLA" /></SelectTrigger>
-                      <SelectContent>{SLA_PERIODS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                      <SelectContent>{getDropdownValues("sla_period", SLA_PERIODS).map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
                 </div>
@@ -252,6 +282,35 @@ export default function Projects() {
                   <div className="space-y-2"><Label>Trunk</Label><Input placeholder="e.g. SIP" value={form.trunk || ""} onChange={(e) => setForm({ ...form, trunk: e.target.value })} /></div>
                   <div className="space-y-2"><Label>Location</Label><Input placeholder="e.g. Dubai HQ" value={form.location || ""} onChange={(e) => setForm({ ...form, location: e.target.value })} /></div>
                 </div>
+                {customFields.length > 0 && (
+                  <>
+                    <Separator />
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Additional Fields</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      {customFields.map(f => (
+                        <div key={f.id} className="space-y-2">
+                          <Label>{f.field_name}{f.is_required && " *"}</Label>
+                          {f.field_type === "dropdown" ? (
+                            <Select value={customValues[f.field_name] || ""} onValueChange={(v) => setCustomValues({ ...customValues, [f.field_name]: v })}>
+                              <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                              <SelectContent>
+                                {(Array.isArray(f.dropdown_options) ? f.dropdown_options : []).map((opt: string) => (
+                                  <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : f.field_type === "date" ? (
+                            <Input type="date" value={customValues[f.field_name] || ""} onChange={(e) => setCustomValues({ ...customValues, [f.field_name]: e.target.value })} required={f.is_required} />
+                          ) : f.field_type === "number" ? (
+                            <Input type="number" value={customValues[f.field_name] ?? ""} onChange={(e) => setCustomValues({ ...customValues, [f.field_name]: e.target.value ? Number(e.target.value) : "" })} required={f.is_required} />
+                          ) : (
+                            <Input value={customValues[f.field_name] || ""} onChange={(e) => setCustomValues({ ...customValues, [f.field_name]: e.target.value })} required={f.is_required} />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
                 <Button type="submit" className="w-full">Create Project</Button>
               </form>
             </DialogContent>

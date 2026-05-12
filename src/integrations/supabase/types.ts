@@ -320,6 +320,39 @@ export type Database = {
           },
         ]
       }
+      project_dropdown_config: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          field_name: string
+          field_value: string
+          id: string
+          is_active: boolean
+          parent_value: string | null
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          field_name: string
+          field_value: string
+          id?: string
+          is_active?: boolean
+          parent_value?: string | null
+          sort_order?: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          field_name?: string
+          field_value?: string
+          id?: string
+          is_active?: boolean
+          parent_value?: string | null
+          sort_order?: number
+        }
+        Relationships: []
+      }
       project_field_config: {
         Row: {
           created_at: string
@@ -399,6 +432,7 @@ export type Database = {
           client_name: string
           created_at: string
           created_by: string | null
+          custom_fields: Json
           deadline: string | null
           description: string | null
           gw_sl_no: string | null
@@ -433,6 +467,7 @@ export type Database = {
           client_name: string
           created_at?: string
           created_by?: string | null
+          custom_fields?: Json
           deadline?: string | null
           description?: string | null
           gw_sl_no?: string | null
@@ -467,6 +502,7 @@ export type Database = {
           client_name?: string
           created_at?: string
           created_by?: string | null
+          custom_fields?: Json
           deadline?: string | null
           description?: string | null
           gw_sl_no?: string | null
@@ -803,12 +839,11 @@ export type Database = {
         | "sales"
         | "sales_manager"
         | "accounts_manager"
-        | "engineer"
+        | "support_engineer"
+        | "engineering"
         | "ceo"
         | "support_manager"
         | "engineering_manager"
-        | "support_engineer"
-        | "engineering"
       approval_status: "pending" | "approved" | "rejected"
       milestone_status: "pending" | "in_progress" | "completed"
       project_priority: "low" | "medium" | "high" | "critical"
@@ -961,12 +996,11 @@ export const Constants = {
         "sales",
         "sales_manager",
         "accounts_manager",
-        "engineer",
+        "support_engineer",
+        "engineering",
         "ceo",
         "support_manager",
         "engineering_manager",
-        "support_engineer",
-        "engineering",
       ],
       approval_status: ["pending", "approved", "rejected"],
       milestone_status: ["pending", "in_progress", "completed"],
