@@ -499,6 +499,69 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
       )}
+
+      {isProjectManager && (
+        <Card className="max-w-2xl">
+          <CardHeader>
+            <div className="flex items-center gap-2"><Settings2 className="h-4 w-4 text-muted-foreground" /><CardTitle className="text-base">Project Dropdowns Configuration</CardTitle></div>
+            <CardDescription>Manage dropdown values for core project fields (Priority, Status, SLA Period, Purchase Type, Trunk).</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Select value={selectedPDField} onValueChange={setSelectedPDField}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {PROJECT_DROPDOWN_FIELDS.map(f => <SelectItem key={f.key} value={f.key}>{f.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+
+            <div className="flex gap-2">
+              <Input placeholder="New value..." value={newPDValue} onChange={e => setNewPDValue(e.target.value)} onKeyDown={e => e.key === "Enter" && handleAddPD()} />
+              <Button onClick={handleAddPD} disabled={addingPD || !newPDValue.trim()}><Plus className="h-4 w-4 mr-1" /> Add</Button>
+            </div>
+
+            <Separator />
+
+            {filteredPDs.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">No values configured. The form will use built-in defaults.</p>
+            ) : (
+              <ul className="space-y-2">
+                {filteredPDs.map(item => (
+                  <li key={item.id} className="flex items-center justify-between gap-2 rounded-md border px-3 py-2">
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      {editingPDId === item.id ? (
+                        <div className="flex items-center gap-1 flex-1">
+                          <Input
+                            value={editingPDValue}
+                            onChange={e => setEditingPDValue(e.target.value)}
+                            className="h-8 text-sm"
+                            onKeyDown={e => { if (e.key === "Enter") handleEditPD(item.id); if (e.key === "Escape") setEditingPDId(null); }}
+                            autoFocus
+                          />
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-primary" onClick={() => handleEditPD(item.id)}><Check className="h-3.5 w-3.5" /></Button>
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditingPDId(null)}><X className="h-3.5 w-3.5" /></Button>
+                        </div>
+                      ) : (
+                        <span className={`text-sm font-medium truncate ${!item.is_active ? "text-muted-foreground line-through" : ""}`}>
+                          {item.field_value}
+                        </span>
+                      )}
+                    </div>
+                    {editingPDId !== item.id && (
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setEditingPDId(item.id); setEditingPDValue(item.field_value); }} title="Edit"><Pencil className="h-3.5 w-3.5" /></Button>
+                        <Badge variant="outline" className={`cursor-pointer text-xs ${item.is_active ? "border-green-500/40 text-green-600 bg-green-500/10" : "border-muted text-muted-foreground"}`} onClick={() => handleTogglePD(item)}>
+                          {item.is_active ? "Active" : "Inactive"}
+                        </Badge>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDeletePD(item.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
