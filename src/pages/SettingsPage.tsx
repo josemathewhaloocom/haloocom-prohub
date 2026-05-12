@@ -162,12 +162,18 @@ export default function SettingsPage() {
     if (!newFieldName.trim()) return;
     setAddingField(true);
     const maxSort = customFields.length > 0 ? Math.max(...customFields.map(f => f.sort_order)) + 1 : 0;
-    const { error } = await supabase.from("project_field_config" as any).insert({
+    const payload: any = {
       field_name: newFieldName.trim(), field_type: newFieldType,
       is_required: newFieldRequired, sort_order: maxSort, created_by: user?.id,
-    });
+    };
+    if (newFieldType === "dropdown") {
+      const opts = newFieldOptions.split(",").map(o => o.trim()).filter(Boolean);
+      if (opts.length === 0) { toast.error("Add at least one dropdown option (comma-separated)"); setAddingField(false); return; }
+      payload.dropdown_options = opts;
+    }
+    const { error } = await supabase.from("project_field_config" as any).insert(payload);
     if (error) toast.error(error.message);
-    else { toast.success("Field added!"); setNewFieldName(""); setNewFieldType("text"); setNewFieldRequired(false); fetchCustomFields(); }
+    else { toast.success("Field added!"); setNewFieldName(""); setNewFieldType("text"); setNewFieldRequired(false); setNewFieldOptions(""); fetchCustomFields(); }
     setAddingField(false);
   };
 
@@ -175,6 +181,41 @@ export default function SettingsPage() {
     const { error } = await supabase.from("project_field_config" as any).delete().eq("id", id);
     if (error) toast.error(error.message);
     else { toast.success("Field removed."); fetchCustomFields(); }
+  };
+
+  // Project dropdowns CRUD
+  const fetchProjectDropdowns = async () => {
+    const { data } = await supabase.from("project_dropdown_config" as any).select("*").order("sort_order");
+    setProjectDropdowns((data as any) ?? []);
+  };
+  const handleAddPD = async () => {
+    if (!newPDValue.trim()) return;
+    setAddingPD(true);
+    const existing = projectDropdowns.filter(c => c.field_name === selectedPDField);
+    const maxSort = existing.length ? Math.max(...existing.map(c => c.sort_order)) + 1 : 0;
+    const { error } = await supabase.from("project_dropdown_config" as any).insert({
+      field_name: selectedPDField, field_value: newPDValue.trim(),
+      sort_order: maxSort, created_by: user?.id,
+    });
+    if (error) toast.error(error.message);
+    else { toast.success("Value added!"); setNewPDValue(""); fetchProjectDropdowns(); }
+    setAddingPD(false);
+  };
+  const handleDeletePD = async (id: string) => {
+    const { error } = await supabase.from("project_dropdown_config" as any).delete().eq("id", id);
+    if (error) toast.error(error.message);
+    else { toast.success("Value removed."); fetchProjectDropdowns(); }
+  };
+  const handleTogglePD = async (item: ProjectDropdownItem) => {
+    const { error } = await supabase.from("project_dropdown_config" as any).update({ is_active: !item.is_active }).eq("id", item.id);
+    if (error) toast.error(error.message);
+    else fetchProjectDropdowns();
+  };
+  const handleEditPD = async (id: string) => {
+    if (!editingPDValue.trim()) return;
+    const { error } = await supabase.from("project_dropdown_config" as any).update({ field_value: editingPDValue.trim() }).eq("id", id);
+    if (error) toast.error(error.message);
+    else { toast.success("Value updated!"); setEditingPDId(null); fetchProjectDropdowns(); }
   };
 
   const fetchTicketConfigs = async () => {
