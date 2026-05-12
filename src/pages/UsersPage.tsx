@@ -117,9 +117,7 @@ export default function UsersPage() {
     // If a reporting manager was selected and the user was created, assign it
     const newUserId = data?.user_id;
     if (newUserId && inviteReportingManager) {
-      const needsSalesManager = selectedRoles.includes("sales");
-      const needsPM = selectedRoles.includes("engineer");
-      const relType = needsSalesManager ? "sales_to_sales_manager" : needsPM ? "engineer_to_project_manager" : null;
+      const relType = getRelType(selectedRoles);
       if (relType) {
         await supabase.from("reporting_managers" as any).upsert({
           user_id: newUserId,
@@ -141,10 +139,11 @@ export default function UsersPage() {
     if (currentRoles.includes(role)) {
       const { error } = await supabase.from("user_roles").delete().eq("user_id", userId).eq("role", role as any);
       if (error) { toast.error(error.message); return; }
-      // Also remove reporting manager if removing sales/engineer role
-      if (role === "sales" || role === "engineer") {
-        const relType = role === "sales" ? "sales_to_sales_manager" : "engineer_to_project_manager";
-        await supabase.from("reporting_managers" as any).delete().eq("user_id", userId).eq("relationship_type", relType);
+      // Also remove reporting manager if the corresponding role was removed
+      const remaining = currentRoles.filter(r => r !== role);
+      const oldRel = getRelTypeForRole(role);
+      if (oldRel && !getRelType(remaining)) {
+        await supabase.from("reporting_managers" as any).delete().eq("user_id", userId).eq("relationship_type", oldRel);
       }
       toast.success(`Removed ${ROLE_LABELS[role]} role`);
     } else {
@@ -156,9 +155,7 @@ export default function UsersPage() {
   };
 
   const updateReportingManager = async (userId: string, managerId: string, userRoles: string[]) => {
-    const isSales = userRoles.includes("sales");
-    const isEngineerRole = userRoles.includes("support_engineer") || userRoles.includes("engineering");
-    const relType = isSales ? "sales_to_sales_manager" : isEngineerRole ? "engineer_to_project_manager" : null;
+    const relType = getRelType(userRoles);
     if (!relType) return;
 
     if (managerId === "none") {
@@ -184,29 +181,48 @@ export default function UsersPage() {
     u.email.toLowerCase().includes(search.toLowerCase())
   );
 
-  // Get managers by role for dropdowns
+  // Manager pools
   const salesManagers = users.filter(u => u.roles.includes("sales_manager"));
+  const supportManagers = users.filter(u => u.roles.includes("support_manager"));
+  const engineeringManagers = users.filter(u => u.roles.includes("engineering_manager"));
   const projectManagers = users.filter(u => u.roles.includes("project_manager"));
+  // Engineers can report to any manager-class user
+  const engineerManagerPool = [...new Map(
+    [...projectManagers, ...supportManagers, ...engineeringManagers].map(u => [u.id, u])
+  ).values()];
+
+  function getRelTypeForRole(role: string): string | null {
+    if (role === "sales") return "sales_to_sales_manager";
+    if (role === "support_engineer") return "support_engineer_to_manager";
+    if (role === "engineering") return "engineering_to_manager";
+    return null;
+  }
+  function getRelType(roles: string[]): string | null {
+    if (roles.includes("sales")) return "sales_to_sales_manager";
+    if (roles.includes("engineering")) return "engineering_to_manager";
+    if (roles.includes("support_engineer")) return "support_engineer_to_manager";
+    return null;
+  }
 
   const needsReportingManager = (roles: string[]) =>
-    roles.includes("sales") || roles.includes("engineer");
+    roles.includes("sales") || roles.includes("support_engineer") || roles.includes("engineering");
 
   const getManagerOptions = (roles: string[]) => {
     if (roles.includes("sales")) return salesManagers;
-    if (roles.includes("engineer")) return projectManagers;
+    if (roles.includes("engineering") || roles.includes("support_engineer")) return engineerManagerPool;
     return [];
   };
 
   const getManagerLabel = (roles: string[]) => {
     if (roles.includes("sales")) return "Sales Manager";
-    if (roles.includes("engineer")) return "Project Manager";
+    if (roles.includes("engineering") || roles.includes("support_engineer")) return "Reporting Manager";
     return "";
   };
 
   // For invite form
-  const inviteNeedsManager = selectedRoles.includes("sales") || selectedRoles.includes("engineer");
-  const inviteManagerOptions = selectedRoles.includes("sales") ? salesManagers : selectedRoles.includes("engineer") ? projectManagers : [];
-  const inviteManagerLabel = selectedRoles.includes("sales") ? "Sales Manager" : selectedRoles.includes("engineer") ? "Project Manager" : "Reporting Manager";
+  const inviteNeedsManager = needsReportingManager(selectedRoles);
+  const inviteManagerOptions = getManagerOptions(selectedRoles);
+  const inviteManagerLabel = getManagerLabel(selectedRoles);
 
   return (
     <div className="space-y-6">

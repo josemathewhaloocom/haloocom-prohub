@@ -40,7 +40,7 @@ serve(async (req) => {
     // Determine roles to assign - support both old single-role and new multi-role format
     const rolesToAssign: string[] = Array.isArray(roles) && roles.length > 0
       ? roles
-      : ["engineer"]; // backwards compatibility
+      : ["support_engineer"]; // backwards compatibility
 
     // Try to create user
     const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
