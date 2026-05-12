@@ -169,6 +169,7 @@ export default function Projects() {
     toast.success("Project created!");
     setDialogOpen(false);
     setForm({ status: "draft" as any, priority: "medium" });
+    setCustomValues({});
 
     // Notify Sales Manager about new project via edge function (bypasses RLS)
     try {
