@@ -24,9 +24,15 @@ interface Product { id: string; name: string; is_active: boolean; created_at: st
 interface CustomField {
   id: string; field_name: string; field_type: string;
   is_required: boolean; sort_order: number;
+  dropdown_options?: any;
 }
 
 interface TicketConfigItem {
+  id: string; field_name: string; field_value: string;
+  parent_value: string | null; sort_order: number; is_active: boolean;
+}
+
+interface ProjectDropdownItem {
   id: string; field_name: string; field_value: string;
   parent_value: string | null; sort_order: number; is_active: boolean;
 }
@@ -39,6 +45,14 @@ const TICKET_CONFIG_FIELDS = [
   { key: "case_type", label: "Case Type" },
   { key: "category", label: "Category" },
   { key: "sub_category", label: "Sub Category" },
+];
+
+const PROJECT_DROPDOWN_FIELDS = [
+  { key: "priority", label: "Priority" },
+  { key: "status", label: "Status" },
+  { key: "sla_period", label: "SLA Period" },
+  { key: "purchase_type", label: "Purchase Type" },
+  { key: "trunk", label: "Trunk Type" },
 ];
 
 export default function SettingsPage() {
@@ -63,7 +77,16 @@ export default function SettingsPage() {
   const [newFieldName, setNewFieldName] = useState("");
   const [newFieldType, setNewFieldType] = useState("text");
   const [newFieldRequired, setNewFieldRequired] = useState(false);
+  const [newFieldOptions, setNewFieldOptions] = useState("");
   const [addingField, setAddingField] = useState(false);
+
+  // Project dropdown config state
+  const [projectDropdowns, setProjectDropdowns] = useState<ProjectDropdownItem[]>([]);
+  const [selectedPDField, setSelectedPDField] = useState("priority");
+  const [newPDValue, setNewPDValue] = useState("");
+  const [addingPD, setAddingPD] = useState(false);
+  const [editingPDId, setEditingPDId] = useState<string | null>(null);
+  const [editingPDValue, setEditingPDValue] = useState("");
 
   // Ticket config state
   const [ticketConfigs, setTicketConfigs] = useState<TicketConfigItem[]>([]);
