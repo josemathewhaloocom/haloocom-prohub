@@ -235,8 +235,9 @@ export default function Projects() {
                     <Select value={form.priority || "medium"} onValueChange={(v) => setForm({ ...form, priority: v as any })}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="low">Low</SelectItem><SelectItem value="medium">Medium</SelectItem>
-                        <SelectItem value="high">High</SelectItem><SelectItem value="critical">Critical</SelectItem>
+                        {getDropdownValues("priority", ["low", "medium", "high", "critical"]).map(v => (
+                          <SelectItem key={v} value={v.toLowerCase()}>{v.charAt(0).toUpperCase() + v.slice(1)}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -244,7 +245,7 @@ export default function Projects() {
                     <Label>SLA Period</Label>
                     <Select value={form.sla_period || ""} onValueChange={(v) => setForm({ ...form, sla_period: v })}>
                       <SelectTrigger><SelectValue placeholder="Select SLA" /></SelectTrigger>
-                      <SelectContent>{SLA_PERIODS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                      <SelectContent>{getDropdownValues("sla_period", SLA_PERIODS).map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
                 </div>
