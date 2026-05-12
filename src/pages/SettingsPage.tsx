@@ -265,11 +265,14 @@ export default function SettingsPage() {
   const filteredConfigs = ticketConfigs.filter(c => c.field_name === selectedConfigField);
   const categories = ticketConfigs.filter(c => c.field_name === "category" && c.is_active);
 
+  const filteredPDs = projectDropdowns.filter(c => c.field_name === selectedPDField);
+
   useEffect(() => {
     if (isProjectManager) {
       fetchProducts();
       fetchSmtpSettings();
       fetchCustomFields();
+      fetchProjectDropdowns();
     }
     if (canManageTicketConfig) fetchTicketConfigs();
   }, [isProjectManager, canManageTicketConfig]);
