@@ -282,6 +282,35 @@ export default function Projects() {
                   <div className="space-y-2"><Label>Trunk</Label><Input placeholder="e.g. SIP" value={form.trunk || ""} onChange={(e) => setForm({ ...form, trunk: e.target.value })} /></div>
                   <div className="space-y-2"><Label>Location</Label><Input placeholder="e.g. Dubai HQ" value={form.location || ""} onChange={(e) => setForm({ ...form, location: e.target.value })} /></div>
                 </div>
+                {customFields.length > 0 && (
+                  <>
+                    <Separator />
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Additional Fields</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      {customFields.map(f => (
+                        <div key={f.id} className="space-y-2">
+                          <Label>{f.field_name}{f.is_required && " *"}</Label>
+                          {f.field_type === "dropdown" ? (
+                            <Select value={customValues[f.field_name] || ""} onValueChange={(v) => setCustomValues({ ...customValues, [f.field_name]: v })}>
+                              <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                              <SelectContent>
+                                {(Array.isArray(f.dropdown_options) ? f.dropdown_options : []).map((opt: string) => (
+                                  <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : f.field_type === "date" ? (
+                            <Input type="date" value={customValues[f.field_name] || ""} onChange={(e) => setCustomValues({ ...customValues, [f.field_name]: e.target.value })} required={f.is_required} />
+                          ) : f.field_type === "number" ? (
+                            <Input type="number" value={customValues[f.field_name] ?? ""} onChange={(e) => setCustomValues({ ...customValues, [f.field_name]: e.target.value ? Number(e.target.value) : "" })} required={f.is_required} />
+                          ) : (
+                            <Input value={customValues[f.field_name] || ""} onChange={(e) => setCustomValues({ ...customValues, [f.field_name]: e.target.value })} required={f.is_required} />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
                 <Button type="submit" className="w-full">Create Project</Button>
               </form>
             </DialogContent>
