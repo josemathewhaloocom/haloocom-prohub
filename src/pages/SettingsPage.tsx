@@ -376,10 +376,18 @@ export default function SettingsPage() {
                   <SelectItem value="text">Text</SelectItem>
                   <SelectItem value="number">Number</SelectItem>
                   <SelectItem value="date">Date</SelectItem>
+                  <SelectItem value="dropdown">Dropdown</SelectItem>
                 </SelectContent>
               </Select>
               <Button onClick={handleAddField} disabled={addingField || !newFieldName.trim()}><Plus className="h-4 w-4 mr-1" /> Add</Button>
             </div>
+            {newFieldType === "dropdown" && (
+              <Input
+                placeholder="Comma-separated options (e.g. Option A, Option B)"
+                value={newFieldOptions}
+                onChange={(e) => setNewFieldOptions(e.target.value)}
+              />
+            )}
             <div className="flex items-center gap-2">
               <Switch checked={newFieldRequired} onCheckedChange={setNewFieldRequired} />
               <Label className="text-sm">Required field</Label>
