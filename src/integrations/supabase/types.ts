@@ -230,6 +230,204 @@ export type Database = {
           },
         ]
       }
+      poc_assignments: {
+        Row: {
+          assigned_at: string
+          engineer_id: string
+          id: string
+          poc_id: string
+        }
+        Insert: {
+          assigned_at?: string
+          engineer_id: string
+          id?: string
+          poc_id: string
+        }
+        Update: {
+          assigned_at?: string
+          engineer_id?: string
+          id?: string
+          poc_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "poc_assignments_poc_id_fkey"
+            columns: ["poc_id"]
+            isOneToOne: false
+            referencedRelation: "pocs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      poc_daily_updates: {
+        Row: {
+          blockers: string | null
+          created_at: string
+          engineer_id: string
+          hours_worked: number
+          id: string
+          percentage_complete: number
+          poc_id: string
+          summary: string
+          update_date: string
+        }
+        Insert: {
+          blockers?: string | null
+          created_at?: string
+          engineer_id: string
+          hours_worked?: number
+          id?: string
+          percentage_complete?: number
+          poc_id: string
+          summary: string
+          update_date?: string
+        }
+        Update: {
+          blockers?: string | null
+          created_at?: string
+          engineer_id?: string
+          hours_worked?: number
+          id?: string
+          percentage_complete?: number
+          poc_id?: string
+          summary?: string
+          update_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "poc_daily_updates_poc_id_fkey"
+            columns: ["poc_id"]
+            isOneToOne: false
+            referencedRelation: "pocs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      poc_stakeholders: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          name: string
+          poc_id: string
+          role: string | null
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          name: string
+          poc_id: string
+          role?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          name?: string
+          poc_id?: string
+          role?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "poc_stakeholders_poc_id_fkey"
+            columns: ["poc_id"]
+            isOneToOne: false
+            referencedRelation: "pocs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pocs: {
+        Row: {
+          client_company: string | null
+          client_email: string | null
+          client_name: string
+          converted_at: string | null
+          converted_project_id: string | null
+          created_at: string
+          created_by: string | null
+          custom_fields: Json
+          description: string | null
+          evaluation_date: string | null
+          id: string
+          is_archived: boolean
+          location: string | null
+          name: string
+          num_channels: number | null
+          num_users: number | null
+          outcome: string | null
+          outcome_reason: string | null
+          priority: string
+          product_id: string | null
+          product_version: string | null
+          progress_percentage: number
+          start_date: string | null
+          status: string
+          success_criteria: string | null
+          trunk: string | null
+          updated_at: string
+        }
+        Insert: {
+          client_company?: string | null
+          client_email?: string | null
+          client_name: string
+          converted_at?: string | null
+          converted_project_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          custom_fields?: Json
+          description?: string | null
+          evaluation_date?: string | null
+          id?: string
+          is_archived?: boolean
+          location?: string | null
+          name: string
+          num_channels?: number | null
+          num_users?: number | null
+          outcome?: string | null
+          outcome_reason?: string | null
+          priority?: string
+          product_id?: string | null
+          product_version?: string | null
+          progress_percentage?: number
+          start_date?: string | null
+          status?: string
+          success_criteria?: string | null
+          trunk?: string | null
+          updated_at?: string
+        }
+        Update: {
+          client_company?: string | null
+          client_email?: string | null
+          client_name?: string
+          converted_at?: string | null
+          converted_project_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          custom_fields?: Json
+          description?: string | null
+          evaluation_date?: string | null
+          id?: string
+          is_archived?: boolean
+          location?: string | null
+          name?: string
+          num_channels?: number | null
+          num_users?: number | null
+          outcome?: string | null
+          outcome_reason?: string | null
+          priority?: string
+          product_id?: string | null
+          product_version?: string | null
+          progress_percentage?: number
+          start_date?: string | null
+          status?: string
+          success_criteria?: string | null
+          trunk?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       product_catalog: {
         Row: {
           created_at: string
@@ -826,6 +1024,7 @@ export type Database = {
         Returns: boolean
       }
       is_admin: { Args: never; Returns: boolean }
+      is_assigned_to_poc: { Args: { _poc_id: string }; Returns: boolean }
       is_assigned_to_project: {
         Args: { _project_id: string }
         Returns: boolean
