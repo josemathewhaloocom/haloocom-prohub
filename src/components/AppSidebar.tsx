@@ -14,13 +14,14 @@ import {
   BarChart3,
   HelpCircle,
   TicketIcon,
+  Lightbulb,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 
 export default function AppSidebar() {
-  const { signOut, user, isProjectManager, isSupportEngineer, isEngineering, isSupportManager, isSalesManager, isEngineeringManager } = useAuth();
+  const { signOut, user, isProjectManager, isSupportEngineer, isEngineering, isSupportManager, isSalesManager, isEngineeringManager, isSales, isAdminManager, isCEO } = useAuth();
   const isAnyEngineer = isSupportEngineer || isEngineering;
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
@@ -33,6 +34,7 @@ export default function AppSidebar() {
   const navItems = [
     { to: "/", label: "Dashboard", icon: LayoutDashboard, visible: true },
     { to: "/projects", label: "Projects", icon: FolderKanban, visible: true },
+    { to: "/pocs", label: "POCs", icon: Lightbulb, visible: isProjectManager || isSales || isSalesManager || isAdminManager || isCEO || isAnyEngineer },
     { to: "/engineers", label: "Engineers", icon: Users, visible: isProjectManager },
     { to: "/updates", label: "Daily Updates", icon: ClipboardList, visible: isProjectManager || isAnyEngineer },
     { to: "/documents", label: "Documents", icon: FileText, visible: true },
