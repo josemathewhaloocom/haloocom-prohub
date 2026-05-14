@@ -42,6 +42,8 @@ export default function POCs() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<any>({ status: "in_progress", priority: "medium" });
+  const [products, setProducts] = useState<any[]>([]);
+  const [engineers, setEngineers] = useState<any[]>([]);
 
   const canCreate = isProjectManager || isSales || isSalesManager || isAdminManager || isCEO;
 
@@ -51,11 +53,24 @@ export default function POCs() {
     setPocs((data as any) ?? []);
   };
 
-  useEffect(() => { fetchPocs(); }, []);
+  const fetchMeta = async () => {
+    const [{ data: prod }, { data: roles }] = await Promise.all([
+      supabase.from("product_catalog").select("*").eq("is_active", true).order("name"),
+      supabase.from("user_roles").select("user_id, role").in("role", ["support_engineer", "engineering"] as any),
+    ]);
+    setProducts(prod ?? []);
+    const ids = [...new Set((roles ?? []).map((r: any) => r.user_id))];
+    if (ids.length) {
+      const { data: profs } = await supabase.from("profiles").select("id, first_name, last_name, email").in("id", ids);
+      setEngineers(profs ?? []);
+    }
+  };
+
+  useEffect(() => { fetchPocs(); fetchMeta(); }, []);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { error } = await supabase.from("pocs" as any).insert({
+    const { data: created, error } = await supabase.from("pocs" as any).insert({
       name: form.name,
       client_name: form.client_name,
       client_email: form.client_email || null,
@@ -66,9 +81,18 @@ export default function POCs() {
       start_date: form.start_date || null,
       evaluation_date: form.evaluation_date || null,
       success_criteria: form.success_criteria || null,
+      product_id: form.product_id || null,
+      product_version: form.product_version || null,
+      num_users: form.num_users ? Number(form.num_users) : null,
+      num_channels: form.num_channels ? Number(form.num_channels) : null,
+      trunk: form.trunk || null,
+      location: form.location || null,
       created_by: user!.id,
-    } as any);
+    } as any).select().single();
     if (error) { toast.error(error.message); return; }
+    if (form.engineer_id && created) {
+      await supabase.from("poc_assignments" as any).insert({ poc_id: (created as any).id, engineer_id: form.engineer_id } as any);
+    }
     toast.success("POC created!");
     setDialogOpen(false);
     setForm({ status: "in_progress", priority: "medium" });
