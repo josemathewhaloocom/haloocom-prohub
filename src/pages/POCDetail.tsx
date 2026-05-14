@@ -37,6 +37,10 @@ export default function POCDetail() {
   const [updateForm, setUpdateForm] = useState<any>({ percentage_complete: 0, hours_worked: 0, summary: "" });
   const [stakeholderForm, setStakeholderForm] = useState<any>({});
   const [convertOpen, setConvertOpen] = useState(false);
+  const [products, setProducts] = useState<any[]>([]);
+  const [engineers, setEngineers] = useState<any[]>([]);
+  const [assignments, setAssignments] = useState<any[]>([]);
+  const [assignEngineerId, setAssignEngineerId] = useState("");
 
   const isOwner = poc?.created_by === user?.id;
   const canEdit = isOwner || isProjectManager;
@@ -44,15 +48,25 @@ export default function POCDetail() {
 
   const fetchAll = async () => {
     if (!id) return;
-    const [{ data: p }, { data: u }, { data: s }] = await Promise.all([
+    const [{ data: p }, { data: u }, { data: s }, { data: a }, { data: prod }, { data: roles }] = await Promise.all([
       supabase.from("pocs" as any).select("*").eq("id", id).maybeSingle(),
       supabase.from("poc_daily_updates" as any).select("*").eq("poc_id", id).order("update_date", { ascending: false }),
       supabase.from("poc_stakeholders" as any).select("*").eq("poc_id", id).order("created_at"),
+      supabase.from("poc_assignments" as any).select("*").eq("poc_id", id),
+      supabase.from("product_catalog").select("*").eq("is_active", true).order("name"),
+      supabase.from("user_roles").select("user_id, role").in("role", ["support_engineer", "engineering"] as any),
     ]);
     setPoc(p);
     setEditing(p || {});
     setUpdates((u as any) ?? []);
     setStakeholders((s as any) ?? []);
+    setAssignments((a as any) ?? []);
+    setProducts(prod ?? []);
+    const ids = [...new Set((roles ?? []).map((r: any) => r.user_id))];
+    if (ids.length) {
+      const { data: profs } = await supabase.from("profiles").select("id, first_name, last_name, email").in("id", ids);
+      setEngineers(profs ?? []);
+    }
   };
 
   useEffect(() => { fetchAll(); }, [id]);
