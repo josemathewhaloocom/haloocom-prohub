@@ -85,9 +85,29 @@ export default function POCDetail() {
       evaluation_date: editing.evaluation_date,
       outcome: editing.outcome,
       outcome_reason: editing.outcome_reason,
+      product_id: editing.product_id || null,
+      product_version: editing.product_version || null,
+      num_users: editing.num_users ? Number(editing.num_users) : null,
+      num_channels: editing.num_channels ? Number(editing.num_channels) : null,
+      trunk: editing.trunk || null,
+      location: editing.location || null,
     }).eq("id", id!);
     if (error) { toast.error(error.message); return; }
     toast.success("Saved");
+    fetchAll();
+  };
+
+  const handleAssign = async () => {
+    if (!assignEngineerId) return;
+    const { error } = await supabase.from("poc_assignments" as any).insert({ poc_id: id, engineer_id: assignEngineerId } as any);
+    if (error) { toast.error(error.message); return; }
+    setAssignEngineerId("");
+    toast.success("Engineer assigned");
+    fetchAll();
+  };
+
+  const handleUnassign = async (aid: string) => {
+    await supabase.from("poc_assignments" as any).delete().eq("id", aid);
     fetchAll();
   };
 
