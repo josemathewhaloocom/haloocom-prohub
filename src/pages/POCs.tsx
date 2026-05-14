@@ -42,6 +42,8 @@ export default function POCs() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<any>({ status: "in_progress", priority: "medium" });
+  const [products, setProducts] = useState<any[]>([]);
+  const [engineers, setEngineers] = useState<any[]>([]);
 
   const canCreate = isProjectManager || isSales || isSalesManager || isAdminManager || isCEO;
 
@@ -51,11 +53,24 @@ export default function POCs() {
     setPocs((data as any) ?? []);
   };
 
-  useEffect(() => { fetchPocs(); }, []);
+  const fetchMeta = async () => {
+    const [{ data: prod }, { data: roles }] = await Promise.all([
+      supabase.from("product_catalog").select("*").eq("is_active", true).order("name"),
+      supabase.from("user_roles").select("user_id, role").in("role", ["support_engineer", "engineering"] as any),
+    ]);
+    setProducts(prod ?? []);
+    const ids = [...new Set((roles ?? []).map((r: any) => r.user_id))];
+    if (ids.length) {
+      const { data: profs } = await supabase.from("profiles").select("id, first_name, last_name, email").in("id", ids);
+      setEngineers(profs ?? []);
+    }
+  };
+
+  useEffect(() => { fetchPocs(); fetchMeta(); }, []);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { error } = await supabase.from("pocs" as any).insert({
+    const { data: created, error } = await supabase.from("pocs" as any).insert({
       name: form.name,
       client_name: form.client_name,
       client_email: form.client_email || null,
@@ -66,9 +81,18 @@ export default function POCs() {
       start_date: form.start_date || null,
       evaluation_date: form.evaluation_date || null,
       success_criteria: form.success_criteria || null,
+      product_id: form.product_id || null,
+      product_version: form.product_version || null,
+      num_users: form.num_users ? Number(form.num_users) : null,
+      num_channels: form.num_channels ? Number(form.num_channels) : null,
+      trunk: form.trunk || null,
+      location: form.location || null,
       created_by: user!.id,
-    } as any);
+    } as any).select().single();
     if (error) { toast.error(error.message); return; }
+    if (form.engineer_id && created) {
+      await supabase.from("poc_assignments" as any).insert({ poc_id: (created as any).id, engineer_id: form.engineer_id } as any);
+    }
     toast.success("POC created!");
     setDialogOpen(false);
     setForm({ status: "in_progress", priority: "medium" });
@@ -126,6 +150,30 @@ export default function POCs() {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2"><Label>Start Date</Label><Input type="date" value={form.start_date || ""} onChange={(e) => setForm({ ...form, start_date: e.target.value })} /></div>
                   <div className="space-y-2"><Label>Evaluation Date</Label><Input type="date" value={form.evaluation_date || ""} onChange={(e) => setForm({ ...form, evaluation_date: e.target.value })} /></div>
+                </div>
+                <div className="border-t pt-3 space-y-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Product & Deployment</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label>Product Name</Label>
+                      <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.product_id || ""} onChange={(e) => setForm({ ...form, product_id: e.target.value })}>
+                        <option value="">Select product</option>
+                        {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                      </select>
+                    </div>
+                    <div className="space-y-2"><Label>Product Version</Label><Input value={form.product_version || ""} onChange={(e) => setForm({ ...form, product_version: e.target.value })} /></div>
+                    <div className="space-y-2"><Label>No. of Users</Label><Input type="number" min={0} value={form.num_users || ""} onChange={(e) => setForm({ ...form, num_users: e.target.value })} /></div>
+                    <div className="space-y-2"><Label>No. of Channels</Label><Input type="number" min={0} value={form.num_channels || ""} onChange={(e) => setForm({ ...form, num_channels: e.target.value })} /></div>
+                    <div className="space-y-2"><Label>Trunk</Label><Input value={form.trunk || ""} onChange={(e) => setForm({ ...form, trunk: e.target.value })} /></div>
+                    <div className="space-y-2"><Label>Location</Label><Input value={form.location || ""} onChange={(e) => setForm({ ...form, location: e.target.value })} /></div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Assign Engineer</Label>
+                    <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.engineer_id || ""} onChange={(e) => setForm({ ...form, engineer_id: e.target.value })}>
+                      <option value="">Select engineer (optional)</option>
+                      {engineers.map(en => <option key={en.id} value={en.id}>{en.first_name} {en.last_name} ({en.email})</option>)}
+                    </select>
+                  </div>
                 </div>
                 <Button type="submit" className="w-full">Create POC</Button>
               </form>

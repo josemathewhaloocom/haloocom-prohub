@@ -37,6 +37,10 @@ export default function POCDetail() {
   const [updateForm, setUpdateForm] = useState<any>({ percentage_complete: 0, hours_worked: 0, summary: "" });
   const [stakeholderForm, setStakeholderForm] = useState<any>({});
   const [convertOpen, setConvertOpen] = useState(false);
+  const [products, setProducts] = useState<any[]>([]);
+  const [engineers, setEngineers] = useState<any[]>([]);
+  const [assignments, setAssignments] = useState<any[]>([]);
+  const [assignEngineerId, setAssignEngineerId] = useState("");
 
   const isOwner = poc?.created_by === user?.id;
   const canEdit = isOwner || isProjectManager;
@@ -44,15 +48,25 @@ export default function POCDetail() {
 
   const fetchAll = async () => {
     if (!id) return;
-    const [{ data: p }, { data: u }, { data: s }] = await Promise.all([
+    const [{ data: p }, { data: u }, { data: s }, { data: a }, { data: prod }, { data: roles }] = await Promise.all([
       supabase.from("pocs" as any).select("*").eq("id", id).maybeSingle(),
       supabase.from("poc_daily_updates" as any).select("*").eq("poc_id", id).order("update_date", { ascending: false }),
       supabase.from("poc_stakeholders" as any).select("*").eq("poc_id", id).order("created_at"),
+      supabase.from("poc_assignments" as any).select("*").eq("poc_id", id),
+      supabase.from("product_catalog").select("*").eq("is_active", true).order("name"),
+      supabase.from("user_roles").select("user_id, role").in("role", ["support_engineer", "engineering"] as any),
     ]);
     setPoc(p);
     setEditing(p || {});
     setUpdates((u as any) ?? []);
     setStakeholders((s as any) ?? []);
+    setAssignments((a as any) ?? []);
+    setProducts(prod ?? []);
+    const ids = [...new Set((roles ?? []).map((r: any) => r.user_id))];
+    if (ids.length) {
+      const { data: profs } = await supabase.from("profiles").select("id, first_name, last_name, email").in("id", ids);
+      setEngineers(profs ?? []);
+    }
   };
 
   useEffect(() => { fetchAll(); }, [id]);
@@ -71,9 +85,29 @@ export default function POCDetail() {
       evaluation_date: editing.evaluation_date,
       outcome: editing.outcome,
       outcome_reason: editing.outcome_reason,
+      product_id: editing.product_id || null,
+      product_version: editing.product_version || null,
+      num_users: editing.num_users ? Number(editing.num_users) : null,
+      num_channels: editing.num_channels ? Number(editing.num_channels) : null,
+      trunk: editing.trunk || null,
+      location: editing.location || null,
     }).eq("id", id!);
     if (error) { toast.error(error.message); return; }
     toast.success("Saved");
+    fetchAll();
+  };
+
+  const handleAssign = async () => {
+    if (!assignEngineerId) return;
+    const { error } = await supabase.from("poc_assignments" as any).insert({ poc_id: id, engineer_id: assignEngineerId } as any);
+    if (error) { toast.error(error.message); return; }
+    setAssignEngineerId("");
+    toast.success("Engineer assigned");
+    fetchAll();
+  };
+
+  const handleUnassign = async (aid: string) => {
+    await supabase.from("poc_assignments" as any).delete().eq("id", aid);
     fetchAll();
   };
 
@@ -188,6 +222,7 @@ export default function POCDetail() {
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="updates">Daily Updates</TabsTrigger>
           <TabsTrigger value="stakeholders">Stakeholders</TabsTrigger>
+          <TabsTrigger value="engineers">Engineers</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview">
@@ -216,6 +251,22 @@ export default function POCDetail() {
             </div>
             <div className="space-y-2"><Label>Description</Label><Textarea rows={3} disabled={!canEdit} value={editing.description || ""} onChange={(e) => setEditing({ ...editing, description: e.target.value })} /></div>
             <div className="space-y-2"><Label>Success Criteria</Label><Textarea rows={3} disabled={!canEdit} value={editing.success_criteria || ""} onChange={(e) => setEditing({ ...editing, success_criteria: e.target.value })} /></div>
+            <Separator />
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Product & Deployment</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Product Name</Label>
+                <select disabled={!canEdit} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm disabled:opacity-50" value={editing.product_id || ""} onChange={(e) => setEditing({ ...editing, product_id: e.target.value })}>
+                  <option value="">Select product</option>
+                  {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+              <div className="space-y-2"><Label>Product Version</Label><Input disabled={!canEdit} value={editing.product_version || ""} onChange={(e) => setEditing({ ...editing, product_version: e.target.value })} /></div>
+              <div className="space-y-2"><Label>No. of Users</Label><Input type="number" min={0} disabled={!canEdit} value={editing.num_users || ""} onChange={(e) => setEditing({ ...editing, num_users: e.target.value })} /></div>
+              <div className="space-y-2"><Label>No. of Channels</Label><Input type="number" min={0} disabled={!canEdit} value={editing.num_channels || ""} onChange={(e) => setEditing({ ...editing, num_channels: e.target.value })} /></div>
+              <div className="space-y-2"><Label>Trunk</Label><Input disabled={!canEdit} value={editing.trunk || ""} onChange={(e) => setEditing({ ...editing, trunk: e.target.value })} /></div>
+              <div className="space-y-2"><Label>Location</Label><Input disabled={!canEdit} value={editing.location || ""} onChange={(e) => setEditing({ ...editing, location: e.target.value })} /></div>
+            </div>
             <Separator />
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Outcome</p>
             <div className="grid grid-cols-2 gap-3">
@@ -280,6 +331,34 @@ export default function POCDetail() {
                   {canEdit && <Button variant="ghost" size="sm" onClick={() => handleRemoveStakeholder(s.id)}><Trash2 className="h-4 w-4" /></Button>}
                 </div>
               ))}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="engineers">
+          <Card>
+            <CardHeader><CardTitle>Assigned Engineers</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              {canEdit && (
+                <div className="flex gap-2">
+                  <select className="flex h-10 flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm" value={assignEngineerId} onChange={(e) => setAssignEngineerId(e.target.value)}>
+                    <option value="">Select engineer to assign...</option>
+                    {engineers.filter(en => !assignments.some(a => a.engineer_id === en.id)).map(en => (
+                      <option key={en.id} value={en.id}>{en.first_name} {en.last_name} ({en.email})</option>
+                    ))}
+                  </select>
+                  <Button onClick={handleAssign} disabled={!assignEngineerId}><Plus className="h-4 w-4 mr-1" /> Assign</Button>
+                </div>
+              )}
+              {assignments.length === 0 ? <p className="text-sm text-muted-foreground">No engineers assigned yet.</p> : assignments.map((a) => {
+                const en = engineers.find(x => x.id === a.engineer_id);
+                return (
+                  <div key={a.id} className="flex justify-between items-center border rounded p-2 text-sm">
+                    <div>{en ? `${en.first_name} ${en.last_name} (${en.email})` : a.engineer_id}</div>
+                    {canEdit && <Button variant="ghost" size="sm" onClick={() => handleUnassign(a.id)}><Trash2 className="h-4 w-4" /></Button>}
+                  </div>
+                );
+              })}
             </CardContent>
           </Card>
         </TabsContent>
