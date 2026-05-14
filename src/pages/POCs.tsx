@@ -151,6 +151,30 @@ export default function POCs() {
                   <div className="space-y-2"><Label>Start Date</Label><Input type="date" value={form.start_date || ""} onChange={(e) => setForm({ ...form, start_date: e.target.value })} /></div>
                   <div className="space-y-2"><Label>Evaluation Date</Label><Input type="date" value={form.evaluation_date || ""} onChange={(e) => setForm({ ...form, evaluation_date: e.target.value })} /></div>
                 </div>
+                <div className="border-t pt-3 space-y-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Product & Deployment</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label>Product Name</Label>
+                      <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.product_id || ""} onChange={(e) => setForm({ ...form, product_id: e.target.value })}>
+                        <option value="">Select product</option>
+                        {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                      </select>
+                    </div>
+                    <div className="space-y-2"><Label>Product Version</Label><Input value={form.product_version || ""} onChange={(e) => setForm({ ...form, product_version: e.target.value })} /></div>
+                    <div className="space-y-2"><Label>No. of Users</Label><Input type="number" min={0} value={form.num_users || ""} onChange={(e) => setForm({ ...form, num_users: e.target.value })} /></div>
+                    <div className="space-y-2"><Label>No. of Channels</Label><Input type="number" min={0} value={form.num_channels || ""} onChange={(e) => setForm({ ...form, num_channels: e.target.value })} /></div>
+                    <div className="space-y-2"><Label>Trunk</Label><Input value={form.trunk || ""} onChange={(e) => setForm({ ...form, trunk: e.target.value })} /></div>
+                    <div className="space-y-2"><Label>Location</Label><Input value={form.location || ""} onChange={(e) => setForm({ ...form, location: e.target.value })} /></div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Assign Engineer</Label>
+                    <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.engineer_id || ""} onChange={(e) => setForm({ ...form, engineer_id: e.target.value })}>
+                      <option value="">Select engineer (optional)</option>
+                      {engineers.map(en => <option key={en.id} value={en.id}>{en.first_name} {en.last_name} ({en.email})</option>)}
+                    </select>
+                  </div>
+                </div>
                 <Button type="submit" className="w-full">Create POC</Button>
               </form>
             </DialogContent>
