@@ -252,6 +252,22 @@ export default function POCDetail() {
             <div className="space-y-2"><Label>Description</Label><Textarea rows={3} disabled={!canEdit} value={editing.description || ""} onChange={(e) => setEditing({ ...editing, description: e.target.value })} /></div>
             <div className="space-y-2"><Label>Success Criteria</Label><Textarea rows={3} disabled={!canEdit} value={editing.success_criteria || ""} onChange={(e) => setEditing({ ...editing, success_criteria: e.target.value })} /></div>
             <Separator />
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Product & Deployment</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Product Name</Label>
+                <select disabled={!canEdit} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm disabled:opacity-50" value={editing.product_id || ""} onChange={(e) => setEditing({ ...editing, product_id: e.target.value })}>
+                  <option value="">Select product</option>
+                  {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+              <div className="space-y-2"><Label>Product Version</Label><Input disabled={!canEdit} value={editing.product_version || ""} onChange={(e) => setEditing({ ...editing, product_version: e.target.value })} /></div>
+              <div className="space-y-2"><Label>No. of Users</Label><Input type="number" min={0} disabled={!canEdit} value={editing.num_users || ""} onChange={(e) => setEditing({ ...editing, num_users: e.target.value })} /></div>
+              <div className="space-y-2"><Label>No. of Channels</Label><Input type="number" min={0} disabled={!canEdit} value={editing.num_channels || ""} onChange={(e) => setEditing({ ...editing, num_channels: e.target.value })} /></div>
+              <div className="space-y-2"><Label>Trunk</Label><Input disabled={!canEdit} value={editing.trunk || ""} onChange={(e) => setEditing({ ...editing, trunk: e.target.value })} /></div>
+              <div className="space-y-2"><Label>Location</Label><Input disabled={!canEdit} value={editing.location || ""} onChange={(e) => setEditing({ ...editing, location: e.target.value })} /></div>
+            </div>
+            <Separator />
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Outcome</p>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
