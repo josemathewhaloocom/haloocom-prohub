@@ -334,6 +334,34 @@ export default function POCDetail() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="engineers">
+          <Card>
+            <CardHeader><CardTitle>Assigned Engineers</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              {canEdit && (
+                <div className="flex gap-2">
+                  <select className="flex h-10 flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm" value={assignEngineerId} onChange={(e) => setAssignEngineerId(e.target.value)}>
+                    <option value="">Select engineer to assign...</option>
+                    {engineers.filter(en => !assignments.some(a => a.engineer_id === en.id)).map(en => (
+                      <option key={en.id} value={en.id}>{en.first_name} {en.last_name} ({en.email})</option>
+                    ))}
+                  </select>
+                  <Button onClick={handleAssign} disabled={!assignEngineerId}><Plus className="h-4 w-4 mr-1" /> Assign</Button>
+                </div>
+              )}
+              {assignments.length === 0 ? <p className="text-sm text-muted-foreground">No engineers assigned yet.</p> : assignments.map((a) => {
+                const en = engineers.find(x => x.id === a.engineer_id);
+                return (
+                  <div key={a.id} className="flex justify-between items-center border rounded p-2 text-sm">
+                    <div>{en ? `${en.first_name} ${en.last_name} (${en.email})` : a.engineer_id}</div>
+                    {canEdit && <Button variant="ghost" size="sm" onClick={() => handleUnassign(a.id)}><Trash2 className="h-4 w-4" /></Button>}
+                  </div>
+                );
+              })}
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
     </div>
   );
