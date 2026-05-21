@@ -38,6 +38,7 @@ export default function AppSidebar() {
     { to: "/pocs", label: "POCs", icon: Lightbulb, visible: isProjectManager || isSales || isSalesManager || isAdminManager || isCEO || isAnyEngineer },
     { to: "/engineers", label: "Engineers", icon: Users, visible: isProjectManager },
     { to: "/updates", label: "Daily Updates", icon: ClipboardList, visible: isProjectManager || isAnyEngineer },
+    { to: "/standups", label: "Standups", icon: CalendarDays, visible: true },
     { to: "/documents", label: "Documents", icon: FileText, visible: true },
     { to: "/tickets", label: "Tickets", icon: TicketIcon, visible: isProjectManager || isAnyEngineer || isSupportManager || isEngineeringManager },
     { to: "/ticket-reports", label: "Ticket Reports", icon: BarChart3, visible: isProjectManager || isSupportManager || isEngineeringManager },
