@@ -340,9 +340,13 @@ export type Database = {
       }
       pocs: {
         Row: {
+          actual_go_live_date: string | null
+          ai_rep_id: string | null
           client_company: string | null
           client_email: string | null
           client_name: string
+          client_poc_email: string | null
+          client_poc_name: string | null
           converted_at: string | null
           converted_project_id: string | null
           created_at: string
@@ -358,20 +362,30 @@ export type Database = {
           num_users: number | null
           outcome: string | null
           outcome_reason: string | null
+          phase: string | null
           priority: string
           product_id: string | null
           product_version: string | null
           progress_percentage: number
+          received_date: string | null
+          sales_rep_id: string | null
           start_date: string | null
           status: string
           success_criteria: string | null
+          tech_rep_id: string | null
+          tech_stack: string | null
           trunk: string | null
+          uat_date: string | null
           updated_at: string
         }
         Insert: {
+          actual_go_live_date?: string | null
+          ai_rep_id?: string | null
           client_company?: string | null
           client_email?: string | null
           client_name: string
+          client_poc_email?: string | null
+          client_poc_name?: string | null
           converted_at?: string | null
           converted_project_id?: string | null
           created_at?: string
@@ -387,20 +401,30 @@ export type Database = {
           num_users?: number | null
           outcome?: string | null
           outcome_reason?: string | null
+          phase?: string | null
           priority?: string
           product_id?: string | null
           product_version?: string | null
           progress_percentage?: number
+          received_date?: string | null
+          sales_rep_id?: string | null
           start_date?: string | null
           status?: string
           success_criteria?: string | null
+          tech_rep_id?: string | null
+          tech_stack?: string | null
           trunk?: string | null
+          uat_date?: string | null
           updated_at?: string
         }
         Update: {
+          actual_go_live_date?: string | null
+          ai_rep_id?: string | null
           client_company?: string | null
           client_email?: string | null
           client_name?: string
+          client_poc_email?: string | null
+          client_poc_name?: string | null
           converted_at?: string | null
           converted_project_id?: string | null
           created_at?: string
@@ -416,14 +440,20 @@ export type Database = {
           num_users?: number | null
           outcome?: string | null
           outcome_reason?: string | null
+          phase?: string | null
           priority?: string
           product_id?: string | null
           product_version?: string | null
           progress_percentage?: number
+          received_date?: string | null
+          sales_rep_id?: string | null
           start_date?: string | null
           status?: string
           success_criteria?: string | null
+          tech_rep_id?: string | null
+          tech_stack?: string | null
           trunk?: string | null
+          uat_date?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -621,13 +651,17 @@ export type Database = {
       }
       projects: {
         Row: {
+          actual_go_live_date: string | null
           admin_email: string | null
+          ai_rep_id: string | null
           amc_end_date: string | null
           amc_start_date: string | null
           budget: number | null
           client_company: string | null
           client_email: string | null
           client_name: string
+          client_poc_email: string | null
+          client_poc_name: string | null
           created_at: string
           created_by: string | null
           custom_fields: Json
@@ -640,11 +674,14 @@ export type Database = {
           name: string
           num_channels: number | null
           num_users: number | null
+          phase: string | null
           priority: Database["public"]["Enums"]["project_priority"]
           product_id: string | null
           product_version: string | null
           progress_percentage: number
           purchase_type: string | null
+          received_date: string | null
+          sales_rep_id: string | null
           server_serial_number: string | null
           sl_no_remarks: string | null
           sla_end_date: string | null
@@ -652,17 +689,24 @@ export type Database = {
           sla_start_date: string | null
           start_date: string | null
           status: Database["public"]["Enums"]["project_status"]
+          tech_rep_id: string | null
+          tech_stack: string | null
           trunk: string | null
+          uat_date: string | null
           updated_at: string
         }
         Insert: {
+          actual_go_live_date?: string | null
           admin_email?: string | null
+          ai_rep_id?: string | null
           amc_end_date?: string | null
           amc_start_date?: string | null
           budget?: number | null
           client_company?: string | null
           client_email?: string | null
           client_name: string
+          client_poc_email?: string | null
+          client_poc_name?: string | null
           created_at?: string
           created_by?: string | null
           custom_fields?: Json
@@ -675,11 +719,14 @@ export type Database = {
           name: string
           num_channels?: number | null
           num_users?: number | null
+          phase?: string | null
           priority?: Database["public"]["Enums"]["project_priority"]
           product_id?: string | null
           product_version?: string | null
           progress_percentage?: number
           purchase_type?: string | null
+          received_date?: string | null
+          sales_rep_id?: string | null
           server_serial_number?: string | null
           sl_no_remarks?: string | null
           sla_end_date?: string | null
@@ -687,17 +734,24 @@ export type Database = {
           sla_start_date?: string | null
           start_date?: string | null
           status?: Database["public"]["Enums"]["project_status"]
+          tech_rep_id?: string | null
+          tech_stack?: string | null
           trunk?: string | null
+          uat_date?: string | null
           updated_at?: string
         }
         Update: {
+          actual_go_live_date?: string | null
           admin_email?: string | null
+          ai_rep_id?: string | null
           amc_end_date?: string | null
           amc_start_date?: string | null
           budget?: number | null
           client_company?: string | null
           client_email?: string | null
           client_name?: string
+          client_poc_email?: string | null
+          client_poc_name?: string | null
           created_at?: string
           created_by?: string | null
           custom_fields?: Json
@@ -710,11 +764,14 @@ export type Database = {
           name?: string
           num_channels?: number | null
           num_users?: number | null
+          phase?: string | null
           priority?: Database["public"]["Enums"]["project_priority"]
           product_id?: string | null
           product_version?: string | null
           progress_percentage?: number
           purchase_type?: string | null
+          received_date?: string | null
+          sales_rep_id?: string | null
           server_serial_number?: string | null
           sl_no_remarks?: string | null
           sla_end_date?: string | null
@@ -722,7 +779,10 @@ export type Database = {
           sla_start_date?: string | null
           start_date?: string | null
           status?: Database["public"]["Enums"]["project_status"]
+          tech_rep_id?: string | null
+          tech_stack?: string | null
           trunk?: string | null
+          uat_date?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -805,6 +865,129 @@ export type Database = {
           use_ssl?: boolean | null
           use_tls?: boolean | null
           username?: string | null
+        }
+        Relationships: []
+      }
+      standup_action_items: {
+        Row: {
+          assigned_to: string | null
+          closed_date: string | null
+          comments: string | null
+          created_at: string
+          created_by: string | null
+          description: string
+          due_date: string | null
+          id: string
+          poc_id: string | null
+          priority: string
+          project_id: string | null
+          source_standup_item_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          closed_date?: string | null
+          comments?: string | null
+          created_at?: string
+          created_by?: string | null
+          description: string
+          due_date?: string | null
+          id?: string
+          poc_id?: string | null
+          priority?: string
+          project_id?: string | null
+          source_standup_item_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          closed_date?: string | null
+          comments?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string
+          due_date?: string | null
+          id?: string
+          poc_id?: string | null
+          priority?: string
+          project_id?: string | null
+          source_standup_item_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      standup_items: {
+        Row: {
+          blockers: string | null
+          created_at: string
+          created_by: string | null
+          eta_date: string | null
+          id: string
+          meeting_id: string
+          next_steps: string | null
+          poc_id: string | null
+          progress: string | null
+          project_id: string | null
+          status_today: string | null
+          updated_at: string
+        }
+        Insert: {
+          blockers?: string | null
+          created_at?: string
+          created_by?: string | null
+          eta_date?: string | null
+          id?: string
+          meeting_id: string
+          next_steps?: string | null
+          poc_id?: string | null
+          progress?: string | null
+          project_id?: string | null
+          status_today?: string | null
+          updated_at?: string
+        }
+        Update: {
+          blockers?: string | null
+          created_at?: string
+          created_by?: string | null
+          eta_date?: string | null
+          id?: string
+          meeting_id?: string
+          next_steps?: string | null
+          poc_id?: string | null
+          progress?: string | null
+          project_id?: string | null
+          status_today?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      standup_meetings: {
+        Row: {
+          conducted_by: string | null
+          created_at: string
+          id: string
+          meeting_date: string
+          notes: string | null
+          updated_at: string
+        }
+        Insert: {
+          conducted_by?: string | null
+          created_at?: string
+          id?: string
+          meeting_date: string
+          notes?: string | null
+          updated_at?: string
+        }
+        Update: {
+          conducted_by?: string | null
+          created_at?: string
+          id?: string
+          meeting_date?: string
+          notes?: string | null
+          updated_at?: string
         }
         Relationships: []
       }
