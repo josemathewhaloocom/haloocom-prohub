@@ -33,7 +33,9 @@ Add the columns from the sheet's master tracker that we don't already have, so t
 - `tech_stack` (text)
 - `phase` (dropdown: Kickoff / Requirements / Design / Development / UAT / Go-Live / Closed)
 - `client_poc_name`, `client_poc_email`
-- `ai_rep_id`, `tech_rep_id`, `sales_rep_id` (user references)
+- `ai_rep_id` — dropdown of users in the **Engineering** role
+- `tech_rep_id` — dropdown of users in **Support Engineer** or **Implementation Engineering** roles
+- `sales_rep_id` — dropdown of users in **Sales** or **Sales Manager** roles
 - `received_date`, `uat_date`, `actual_go_live_date` (dates; expected go-live = existing `deadline`)
 
 Existing fields reused: client_name, product, num_users, num_channels, num_trunks (POC: `trunk`), description, start_date, status, progress_percentage.
