@@ -1,76 +1,59 @@
+# Plan: Daily Standup Meeting Module
 
+## Goal
+Replace the Google Sheet standup tracker with an in-app module that pulls Projects and POCs already in the system, lets the team log a daily meeting per date, and tracks open action items with priority and status across days.
 
-## Plan: Split Engineer Role into Two Team-Based Roles
+## How it links to existing modules
+- **Source of truth stays in Projects / POCs.** The standup picker only lists existing Projects and POCs — nothing standalone. New Projects/POCs added anywhere appear automatically in the next standup.
+- Project/POC name, client, product, phase, % complete, go-live date, AI/Tech/Sales rep are **read live** from the project/POC record — no duplicate entry.
+- A standup discussion item's "progress today / blockers" can optionally be pushed into the project's existing **Daily Updates** in one click, so engineers don't double-enter.
+- Action items remain open across days until closed, independent of which meeting created them.
 
-### Summary
+## New module: Standups
+Sidebar entry "Standups". Two views:
 
-Replace the single `engineer` role with two distinct roles: `support_engineer` (Support & Implementation) and `engineering` (Engineering team). The ticket's team will be auto-determined based on the creator's/assignee's role, removing the manual "Team" and "Assigned Team" dropdowns from the ticket form.
+1. **Today's Meeting** — open or create today's standup, add a row per project/POC discussed.
+2. **Open Action Items** — global list across all clients/dates, filterable by status, priority, assignee, client.
 
-### Database Changes (Migration)
+### Per-item fields (per Daily Updates Log in the sheet)
+- Project or POC (dropdown from existing records)
+- Status Today (On Track / In Progress / At Risk / Delayed / On Hold / Completed)
+- Progress / Activities done
+- Blockers / Issues
+- Next steps
+- ETA for next milestone
+- "Also save to project Daily Updates" toggle
 
-1. **Add two new values to `app_role` enum**: `support_engineer`, `engineering`
-2. **Migrate existing `engineer` role data**: All current users with `engineer` role get converted to `support_engineer` (preserving backward compatibility; admins can reassign via Users page)
-3. **Remove `assigned_team` column** from `support_tickets` (no longer needed)
-4. **Update `team` column logic**: Will be auto-set based on the creator's role (`support_engineer` -> `support`, `engineering` -> `engineering`)
-5. **Update RLS policies** on `support_tickets`, `faq_items`, `support_ticket_config`, `support_ticket_logs` to reference the new role names instead of `engineer`
-6. **Keep `engineering_manager` role** as-is (already exists)
+### Action items (Pending Tasks Tracker)
+Created from any standup item or directly:
+- Linked project/POC, description, assignee, priority (Critical/High/Medium/Low), status (Open/In Progress/Completed/Cancelled), created date, due date, closed date, comments. Overdue items auto-highlight.
 
-### Frontend Changes
+## Master Tracker fields added to Projects & POCs
+Add the columns from the sheet's master tracker that we don't already have, so the standup can show them:
+- `tech_stack` (text)
+- `phase` (dropdown: Kickoff / Requirements / Design / Development / UAT / Go-Live / Closed)
+- `client_poc_name`, `client_poc_email`
+- `ai_rep_id`, `tech_rep_id`, `sales_rep_id` (user references)
+- `received_date`, `uat_date`, `actual_go_live_date` (dates; expected go-live = existing `deadline`)
 
-**`src/hooks/useAuth.tsx`**
-- Replace `isEngineer` with `isSupportEngineer` and `isEngineering`
-- Add role checks for both new roles
+Existing fields reused: client_name, product, num_users, num_channels, num_trunks (POC: `trunk`), description, start_date, status, progress_percentage.
 
-**`src/pages/UsersPage.tsx`**
-- Update `ROLE_LABELS` and `ROLE_COLORS` to show "Support & Implementation Engineer" and "Engineering" instead of "Engineer"
-- Remove old `engineer` from the role list
+## Database
+- `standup_meetings` (meeting_date unique, conducted_by, notes)
+- `standup_items` (meeting_id, project_id nullable, poc_id nullable — exactly one set, status_today, progress, blockers, next_steps, eta_date)
+- `standup_action_items` (project_id nullable, poc_id nullable, source_standup_item_id nullable, description, assigned_to, priority, status, created_date, due_date, closed_date, comments)
+- ALTER `projects` and `pocs` to add the master tracker columns above.
 
-**`src/pages/Engineers.tsx`**
-- Add tabs or sections for "Support & Implementation" vs "Engineering" team members
-- Filter by respective roles
+RLS: visible to all authenticated users (small team, <10 people, matching existing pattern). Creators and assignees can edit their own items; PM/managers full access.
 
-**`src/pages/SupportTickets.tsx`**
-- Remove "Team" and "Assigned Team" dropdowns from the form
-- Auto-set `team` based on the logged-in user's role when creating a ticket
-- Filter "Assigned Engineer" dropdown to show engineers from both teams (cross-team assignment is still allowed per earlier requirements)
-- Remove `assigned_team` from form state, payload, log tracking, and view dialog
+## UI
+- `src/pages/Standups.tsx` — today's meeting board: header with date picker + "Create today's standup", grid of items per project, inline add-row, action-items side panel.
+- `src/pages/ActionItems.tsx` — filterable global table of all open/closed action items, color-coded by overdue/priority.
+- Add to `AppSidebar.tsx` and `App.tsx` routes `/standups` and `/action-items`.
+- Reuse existing dropdown config pattern for Status/Phase/Priority values so PM can customize.
 
-**`src/pages/Dashboard.tsx`**
-- Route `isSupportEngineer` to `EngineerDashboard`
-- Route `isEngineering` to a similar engineer dashboard (or share the same component)
-
-**`src/components/AppSidebar.tsx`**
-- Update visibility rules to use new role flags
-
-**`src/components/dashboards/EngineerDashboard.tsx`**
-- Update to work with new role names
-
-**`src/components/dashboards/EngineeringManagerDashboard.tsx`**
-- Update engineer queries to filter by `engineering` role for team-specific stats
-
-**`src/components/dashboards/SupportManagerDashboard.tsx`**
-- Update engineer queries to filter by `support_engineer` role for team-specific stats
-
-**`src/pages/SettingsPage.tsx`**
-- Update any role references
-
-**`src/pages/TicketReports.tsx`**
-- Remove `assigned_team` references; use `team` field (auto-set) for team-based breakdowns
-
-**`supabase/functions/invite-engineer/index.ts`**
-- Update to accept new role values
-
-### Key Behavior
-
-- When a **Support & Implementation Engineer** creates a ticket, `team` is auto-set to `"support"`
-- When an **Engineering** team member creates a ticket, `team` is auto-set to `"engineering"`
-- When a **Manager** creates a ticket, they pick which team it belongs to (keep the Team dropdown only for managers)
-- Cross-team assignment remains: any engineer from either team can be assigned to any ticket
-- TAT continues to be calculated as before
-
-### Technical Details
-
-- The `engineer` enum value will be removed after migrating existing data to `support_engineer`
-- All `has_any_role` checks referencing `'engineer'` will be updated to `ARRAY['support_engineer', 'engineering']`
-- The `is_assigned_to_project` function remains unchanged (works on `project_assignments` table regardless of role name)
+## Out of scope (for later if needed)
+- Meeting attendance / notes export
+- Email digests of the standup
+- Auto-creating action items from blockers via AI
 
