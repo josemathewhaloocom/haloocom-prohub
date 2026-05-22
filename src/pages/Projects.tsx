@@ -125,6 +125,21 @@ export default function Projects() {
     setProducts((data as unknown as Product[]) ?? []);
   };
 
+  const fetchRepUsers = async () => {
+    const { data: roles } = await supabase.from("user_roles").select("user_id, role");
+    if (!roles?.length) return;
+    const ids = [...new Set(roles.map((r: any) => r.user_id))];
+    const { data: profs } = await supabase.from("profiles").select("id, first_name, last_name, email").in("id", ids);
+    const profMap = new Map((profs ?? []).map((p: any) => [p.id, p]));
+    const collect = (roleNames: string[]) => roles
+      .filter((r: any) => roleNames.includes(r.role))
+      .map((r: any) => profMap.get(r.user_id))
+      .filter(Boolean);
+    setAiReps(collect(["engineering"]));
+    setTechReps(collect(["support_engineer", "engineering"]));
+    setSalesReps(collect(["sales", "sales_manager"]));
+  };
+
   const fetchDynamicConfig = async () => {
     const [{ data: fields }, { data: dropdowns }] = await Promise.all([
       supabase.from("project_field_config" as any).select("*").order("sort_order"),
