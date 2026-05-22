@@ -193,6 +193,49 @@ export default function POCs() {
                     </select>
                   </div>
                 </div>
+                <div className="border-t pt-3 space-y-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Master Tracker</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2"><Label>Tech Stack</Label><Input placeholder="e.g. SIP, Asterisk" value={form.tech_stack || ""} onChange={(e) => setForm({ ...form, tech_stack: e.target.value })} /></div>
+                    <div className="space-y-2">
+                      <Label>Phase</Label>
+                      <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.phase || ""} onChange={(e) => setForm({ ...form, phase: e.target.value })}>
+                        <option value="">Select phase</option>
+                        {PHASE_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
+                      </select>
+                    </div>
+                    <div className="space-y-2"><Label>Client Contact Name</Label><Input value={form.client_poc_name || ""} onChange={(e) => setForm({ ...form, client_poc_name: e.target.value })} /></div>
+                    <div className="space-y-2"><Label>Client Contact Email</Label><Input type="email" value={form.client_poc_email || ""} onChange={(e) => setForm({ ...form, client_poc_email: e.target.value })} /></div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="space-y-2">
+                      <Label>AI Rep</Label>
+                      <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.ai_rep_id || ""} onChange={(e) => setForm({ ...form, ai_rep_id: e.target.value })}>
+                        <option value="">Select</option>
+                        {aiReps.map(u => <option key={u.id} value={u.id}>{`${u.first_name} ${u.last_name}`.trim() || u.email}</option>)}
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Tech Rep</Label>
+                      <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.tech_rep_id || ""} onChange={(e) => setForm({ ...form, tech_rep_id: e.target.value })}>
+                        <option value="">Select</option>
+                        {techReps.map(u => <option key={u.id} value={u.id}>{`${u.first_name} ${u.last_name}`.trim() || u.email}</option>)}
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Sales Rep</Label>
+                      <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.sales_rep_id || ""} onChange={(e) => setForm({ ...form, sales_rep_id: e.target.value })}>
+                        <option value="">Select</option>
+                        {salesReps.map(u => <option key={u.id} value={u.id}>{`${u.first_name} ${u.last_name}`.trim() || u.email}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="space-y-2"><Label>Received Date</Label><Input type="date" value={form.received_date || ""} onChange={(e) => setForm({ ...form, received_date: e.target.value })} /></div>
+                    <div className="space-y-2"><Label>UAT Date</Label><Input type="date" value={form.uat_date || ""} onChange={(e) => setForm({ ...form, uat_date: e.target.value })} /></div>
+                    <div className="space-y-2"><Label>Actual Go-Live Date</Label><Input type="date" value={form.actual_go_live_date || ""} onChange={(e) => setForm({ ...form, actual_go_live_date: e.target.value })} /></div>
+                  </div>
+                </div>
                 <Button type="submit" className="w-full">Create POC</Button>
               </form>
             </DialogContent>
