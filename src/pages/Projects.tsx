@@ -80,6 +80,9 @@ export default function Projects() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<ProjectForm>({ status: "draft" as any, priority: "medium" });
   const [products, setProducts] = useState<Product[]>([]);
+  const [aiReps, setAiReps] = useState<any[]>([]);
+  const [techReps, setTechReps] = useState<any[]>([]);
+  const [salesReps, setSalesReps] = useState<any[]>([]);
 
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -91,6 +94,8 @@ export default function Projects() {
   const [customFields, setCustomFields] = useState<Array<{ id: string; field_name: string; field_type: string; is_required: boolean; sort_order: number; dropdown_options?: any }>>([]);
   const [dropdownConfig, setDropdownConfig] = useState<Array<{ field_name: string; field_value: string; sort_order: number; is_active: boolean }>>([]);
   const [customValues, setCustomValues] = useState<Record<string, any>>({});
+
+  const PHASE_OPTIONS = ["Kickoff", "Requirements", "Design", "Development", "UAT", "Go-Live", "Closed"];
 
   const canCreate = isProjectManager || isSales;
   const canDelete = isProjectManager;
@@ -120,6 +125,21 @@ export default function Projects() {
     setProducts((data as unknown as Product[]) ?? []);
   };
 
+  const fetchRepUsers = async () => {
+    const { data: roles } = await supabase.from("user_roles").select("user_id, role");
+    if (!roles?.length) return;
+    const ids = [...new Set(roles.map((r: any) => r.user_id))];
+    const { data: profs } = await supabase.from("profiles").select("id, first_name, last_name, email").in("id", ids);
+    const profMap = new Map((profs ?? []).map((p: any) => [p.id, p]));
+    const collect = (roleNames: string[]) => roles
+      .filter((r: any) => roleNames.includes(r.role))
+      .map((r: any) => profMap.get(r.user_id))
+      .filter(Boolean);
+    setAiReps(collect(["engineering"]));
+    setTechReps(collect(["support_engineer", "engineering"]));
+    setSalesReps(collect(["sales", "sales_manager"]));
+  };
+
   const fetchDynamicConfig = async () => {
     const [{ data: fields }, { data: dropdowns }] = await Promise.all([
       supabase.from("project_field_config" as any).select("*").order("sort_order"),
@@ -130,7 +150,7 @@ export default function Projects() {
   };
 
   useEffect(() => { fetchProjects(); fetchDynamicConfig(); }, []);
-  useEffect(() => { if (dialogOpen) fetchProducts(); }, [dialogOpen]);
+  useEffect(() => { if (dialogOpen) { fetchProducts(); fetchRepUsers(); } }, [dialogOpen]);
 
   // Helper: admin-defined dropdown values for a given field, fallback to defaults
   const getDropdownValues = (field: string, defaults: string[]) => {
@@ -159,6 +179,16 @@ export default function Projects() {
       ...(form.num_channels != null ? { num_channels: form.num_channels } : {}),
       ...(form.trunk ? { trunk: form.trunk } : {}),
       ...(form.location ? { location: form.location } : {}),
+      ...((form as any).tech_stack ? { tech_stack: (form as any).tech_stack } : {}),
+      ...((form as any).phase ? { phase: (form as any).phase } : {}),
+      ...((form as any).client_poc_name ? { client_poc_name: (form as any).client_poc_name } : {}),
+      ...((form as any).client_poc_email ? { client_poc_email: (form as any).client_poc_email } : {}),
+      ...((form as any).ai_rep_id ? { ai_rep_id: (form as any).ai_rep_id } : {}),
+      ...((form as any).tech_rep_id ? { tech_rep_id: (form as any).tech_rep_id } : {}),
+      ...((form as any).sales_rep_id ? { sales_rep_id: (form as any).sales_rep_id } : {}),
+      ...((form as any).received_date ? { received_date: (form as any).received_date } : {}),
+      ...((form as any).uat_date ? { uat_date: (form as any).uat_date } : {}),
+      ...((form as any).actual_go_live_date ? { actual_go_live_date: (form as any).actual_go_live_date } : {}),
       ...(form.sla_period ? { sla_period: form.sla_period } : {}),
       ...(form.sla_start_date ? { sla_start_date: form.sla_start_date } : {}),
       ...(form.sla_end_date ? { sla_end_date: form.sla_end_date } : {}),
@@ -281,6 +311,50 @@ export default function Projects() {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2"><Label>Trunk</Label><Input placeholder="e.g. SIP" value={form.trunk || ""} onChange={(e) => setForm({ ...form, trunk: e.target.value })} /></div>
                   <div className="space-y-2"><Label>Location</Label><Input placeholder="e.g. Dubai HQ" value={form.location || ""} onChange={(e) => setForm({ ...form, location: e.target.value })} /></div>
+                </div>
+                <Separator />
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Master Tracker</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2"><Label>Tech Stack</Label><Input placeholder="e.g. SIP, Asterisk" value={(form as any).tech_stack || ""} onChange={(e) => setForm({ ...form, tech_stack: e.target.value } as any)} /></div>
+                  <div className="space-y-2">
+                    <Label>Phase</Label>
+                    <Select value={(form as any).phase || ""} onValueChange={(v) => setForm({ ...form, phase: v } as any)}>
+                      <SelectTrigger><SelectValue placeholder="Select phase" /></SelectTrigger>
+                      <SelectContent>{getDropdownValues("phase", PHASE_OPTIONS).map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2"><Label>Client Contact Name</Label><Input value={(form as any).client_poc_name || ""} onChange={(e) => setForm({ ...form, client_poc_name: e.target.value } as any)} /></div>
+                  <div className="space-y-2"><Label>Client Contact Email</Label><Input type="email" value={(form as any).client_poc_email || ""} onChange={(e) => setForm({ ...form, client_poc_email: e.target.value } as any)} /></div>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="space-y-2">
+                    <Label>AI Rep (Engineering)</Label>
+                    <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={(form as any).ai_rep_id || ""} onChange={(e) => setForm({ ...form, ai_rep_id: e.target.value } as any)}>
+                      <option value="">Select</option>
+                      {aiReps.map(u => <option key={u.id} value={u.id}>{`${u.first_name} ${u.last_name}`.trim() || u.email}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Tech Rep (Support/Impl.)</Label>
+                    <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={(form as any).tech_rep_id || ""} onChange={(e) => setForm({ ...form, tech_rep_id: e.target.value } as any)}>
+                      <option value="">Select</option>
+                      {techReps.map(u => <option key={u.id} value={u.id}>{`${u.first_name} ${u.last_name}`.trim() || u.email}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Sales Rep</Label>
+                    <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={(form as any).sales_rep_id || ""} onChange={(e) => setForm({ ...form, sales_rep_id: e.target.value } as any)}>
+                      <option value="">Select</option>
+                      {salesReps.map(u => <option key={u.id} value={u.id}>{`${u.first_name} ${u.last_name}`.trim() || u.email}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="space-y-2"><Label>Received Date</Label><Input type="date" value={(form as any).received_date || ""} onChange={(e) => setForm({ ...form, received_date: e.target.value } as any)} /></div>
+                  <div className="space-y-2"><Label>UAT Date</Label><Input type="date" value={(form as any).uat_date || ""} onChange={(e) => setForm({ ...form, uat_date: e.target.value } as any)} /></div>
+                  <div className="space-y-2"><Label>Actual Go-Live Date</Label><Input type="date" value={(form as any).actual_go_live_date || ""} onChange={(e) => setForm({ ...form, actual_go_live_date: e.target.value } as any)} /></div>
                 </div>
                 {customFields.length > 0 && (
                   <>

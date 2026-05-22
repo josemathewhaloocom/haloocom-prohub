@@ -20,7 +20,7 @@ import SupportTickets from "@/pages/SupportTickets";
 import TicketReports from "@/pages/TicketReports";
 import FAQPage from "@/pages/FAQPage";
 import Standups from "@/pages/Standups";
-import ActionItems from "@/pages/ActionItems";
+
 import NotFound from "./pages/NotFound";
 import PublicSign from "./pages/PublicSign";
 
@@ -49,7 +49,7 @@ const App = () => (
               <Route path="/ticket-reports" element={<TicketReports />} />
               <Route path="/faq" element={<FAQPage />} />
               <Route path="/standups" element={<Standups />} />
-              <Route path="/action-items" element={<ActionItems />} />
+              
               <Route path="/users" element={<UsersPage />} />
               <Route path="/settings" element={<SettingsPage />} />
             </Route>

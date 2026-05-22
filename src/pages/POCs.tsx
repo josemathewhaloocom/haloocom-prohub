@@ -44,6 +44,10 @@ export default function POCs() {
   const [form, setForm] = useState<any>({ status: "in_progress", priority: "medium" });
   const [products, setProducts] = useState<any[]>([]);
   const [engineers, setEngineers] = useState<any[]>([]);
+  const [aiReps, setAiReps] = useState<any[]>([]);
+  const [techReps, setTechReps] = useState<any[]>([]);
+  const [salesReps, setSalesReps] = useState<any[]>([]);
+  const PHASE_OPTIONS = ["Kickoff", "Requirements", "Design", "Development", "UAT", "Go-Live", "Closed"];
 
   const canCreate = isProjectManager || isSales || isSalesManager || isAdminManager || isCEO;
 
@@ -54,16 +58,20 @@ export default function POCs() {
   };
 
   const fetchMeta = async () => {
-    const [{ data: prod }, { data: roles }] = await Promise.all([
+    const [{ data: prod }, { data: allRoles }] = await Promise.all([
       supabase.from("product_catalog").select("*").eq("is_active", true).order("name"),
-      supabase.from("user_roles").select("user_id, role").in("role", ["support_engineer", "engineering"] as any),
+      supabase.from("user_roles").select("user_id, role"),
     ]);
     setProducts(prod ?? []);
-    const ids = [...new Set((roles ?? []).map((r: any) => r.user_id))];
-    if (ids.length) {
-      const { data: profs } = await supabase.from("profiles").select("id, first_name, last_name, email").in("id", ids);
-      setEngineers(profs ?? []);
-    }
+    const ids = [...new Set((allRoles ?? []).map((r: any) => r.user_id))];
+    if (!ids.length) return;
+    const { data: profs } = await supabase.from("profiles").select("id, first_name, last_name, email").in("id", ids);
+    const profMap = new Map((profs ?? []).map((p: any) => [p.id, p]));
+    const collect = (names: string[]) => (allRoles ?? []).filter((r: any) => names.includes(r.role)).map((r: any) => profMap.get(r.user_id)).filter(Boolean);
+    setEngineers(collect(["support_engineer", "engineering"]));
+    setAiReps(collect(["engineering"]));
+    setTechReps(collect(["support_engineer", "engineering"]));
+    setSalesReps(collect(["sales", "sales_manager"]));
   };
 
   useEffect(() => { fetchPocs(); fetchMeta(); }, []);
@@ -87,6 +95,16 @@ export default function POCs() {
       num_channels: form.num_channels ? Number(form.num_channels) : null,
       trunk: form.trunk || null,
       location: form.location || null,
+      tech_stack: form.tech_stack || null,
+      phase: form.phase || null,
+      client_poc_name: form.client_poc_name || null,
+      client_poc_email: form.client_poc_email || null,
+      ai_rep_id: form.ai_rep_id || null,
+      tech_rep_id: form.tech_rep_id || null,
+      sales_rep_id: form.sales_rep_id || null,
+      received_date: form.received_date || null,
+      uat_date: form.uat_date || null,
+      actual_go_live_date: form.actual_go_live_date || null,
       created_by: user!.id,
     } as any).select().single();
     if (error) { toast.error(error.message); return; }
@@ -173,6 +191,49 @@ export default function POCs() {
                       <option value="">Select engineer (optional)</option>
                       {engineers.map(en => <option key={en.id} value={en.id}>{en.first_name} {en.last_name} ({en.email})</option>)}
                     </select>
+                  </div>
+                </div>
+                <div className="border-t pt-3 space-y-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Master Tracker</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2"><Label>Tech Stack</Label><Input placeholder="e.g. SIP, Asterisk" value={form.tech_stack || ""} onChange={(e) => setForm({ ...form, tech_stack: e.target.value })} /></div>
+                    <div className="space-y-2">
+                      <Label>Phase</Label>
+                      <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.phase || ""} onChange={(e) => setForm({ ...form, phase: e.target.value })}>
+                        <option value="">Select phase</option>
+                        {PHASE_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
+                      </select>
+                    </div>
+                    <div className="space-y-2"><Label>Client Contact Name</Label><Input value={form.client_poc_name || ""} onChange={(e) => setForm({ ...form, client_poc_name: e.target.value })} /></div>
+                    <div className="space-y-2"><Label>Client Contact Email</Label><Input type="email" value={form.client_poc_email || ""} onChange={(e) => setForm({ ...form, client_poc_email: e.target.value })} /></div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="space-y-2">
+                      <Label>AI Rep</Label>
+                      <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.ai_rep_id || ""} onChange={(e) => setForm({ ...form, ai_rep_id: e.target.value })}>
+                        <option value="">Select</option>
+                        {aiReps.map(u => <option key={u.id} value={u.id}>{`${u.first_name} ${u.last_name}`.trim() || u.email}</option>)}
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Tech Rep</Label>
+                      <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.tech_rep_id || ""} onChange={(e) => setForm({ ...form, tech_rep_id: e.target.value })}>
+                        <option value="">Select</option>
+                        {techReps.map(u => <option key={u.id} value={u.id}>{`${u.first_name} ${u.last_name}`.trim() || u.email}</option>)}
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Sales Rep</Label>
+                      <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.sales_rep_id || ""} onChange={(e) => setForm({ ...form, sales_rep_id: e.target.value })}>
+                        <option value="">Select</option>
+                        {salesReps.map(u => <option key={u.id} value={u.id}>{`${u.first_name} ${u.last_name}`.trim() || u.email}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="space-y-2"><Label>Received Date</Label><Input type="date" value={form.received_date || ""} onChange={(e) => setForm({ ...form, received_date: e.target.value })} /></div>
+                    <div className="space-y-2"><Label>UAT Date</Label><Input type="date" value={form.uat_date || ""} onChange={(e) => setForm({ ...form, uat_date: e.target.value })} /></div>
+                    <div className="space-y-2"><Label>Actual Go-Live Date</Label><Input type="date" value={form.actual_go_live_date || ""} onChange={(e) => setForm({ ...form, actual_go_live_date: e.target.value })} /></div>
                   </div>
                 </div>
                 <Button type="submit" className="w-full">Create POC</Button>
