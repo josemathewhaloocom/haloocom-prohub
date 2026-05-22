@@ -150,7 +150,7 @@ export default function Projects() {
   };
 
   useEffect(() => { fetchProjects(); fetchDynamicConfig(); }, []);
-  useEffect(() => { if (dialogOpen) fetchProducts(); }, [dialogOpen]);
+  useEffect(() => { if (dialogOpen) { fetchProducts(); fetchRepUsers(); } }, [dialogOpen]);
 
   // Helper: admin-defined dropdown values for a given field, fallback to defaults
   const getDropdownValues = (field: string, defaults: string[]) => {
