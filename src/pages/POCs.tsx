@@ -95,6 +95,16 @@ export default function POCs() {
       num_channels: form.num_channels ? Number(form.num_channels) : null,
       trunk: form.trunk || null,
       location: form.location || null,
+      tech_stack: form.tech_stack || null,
+      phase: form.phase || null,
+      client_poc_name: form.client_poc_name || null,
+      client_poc_email: form.client_poc_email || null,
+      ai_rep_id: form.ai_rep_id || null,
+      tech_rep_id: form.tech_rep_id || null,
+      sales_rep_id: form.sales_rep_id || null,
+      received_date: form.received_date || null,
+      uat_date: form.uat_date || null,
+      actual_go_live_date: form.actual_go_live_date || null,
       created_by: user!.id,
     } as any).select().single();
     if (error) { toast.error(error.message); return; }
