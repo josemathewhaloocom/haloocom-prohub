@@ -356,6 +356,7 @@ export default function Projects() {
                   <div className="space-y-2"><Label>UAT Date</Label><Input type="date" value={(form as any).uat_date || ""} onChange={(e) => setForm({ ...form, uat_date: e.target.value } as any)} /></div>
                   <div className="space-y-2"><Label>Actual Go-Live Date</Label><Input type="date" value={(form as any).actual_go_live_date || ""} onChange={(e) => setForm({ ...form, actual_go_live_date: e.target.value } as any)} /></div>
                 </div>
+                {customFields.length > 0 && (
                   <>
                     <Separator />
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Additional Fields</p>
