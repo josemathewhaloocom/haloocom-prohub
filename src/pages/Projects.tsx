@@ -312,7 +312,50 @@ export default function Projects() {
                   <div className="space-y-2"><Label>Trunk</Label><Input placeholder="e.g. SIP" value={form.trunk || ""} onChange={(e) => setForm({ ...form, trunk: e.target.value })} /></div>
                   <div className="space-y-2"><Label>Location</Label><Input placeholder="e.g. Dubai HQ" value={form.location || ""} onChange={(e) => setForm({ ...form, location: e.target.value })} /></div>
                 </div>
-                {customFields.length > 0 && (
+                <Separator />
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Master Tracker</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2"><Label>Tech Stack</Label><Input placeholder="e.g. SIP, Asterisk" value={(form as any).tech_stack || ""} onChange={(e) => setForm({ ...form, tech_stack: e.target.value } as any)} /></div>
+                  <div className="space-y-2">
+                    <Label>Phase</Label>
+                    <Select value={(form as any).phase || ""} onValueChange={(v) => setForm({ ...form, phase: v } as any)}>
+                      <SelectTrigger><SelectValue placeholder="Select phase" /></SelectTrigger>
+                      <SelectContent>{getDropdownValues("phase", PHASE_OPTIONS).map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2"><Label>Client Contact Name</Label><Input value={(form as any).client_poc_name || ""} onChange={(e) => setForm({ ...form, client_poc_name: e.target.value } as any)} /></div>
+                  <div className="space-y-2"><Label>Client Contact Email</Label><Input type="email" value={(form as any).client_poc_email || ""} onChange={(e) => setForm({ ...form, client_poc_email: e.target.value } as any)} /></div>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="space-y-2">
+                    <Label>AI Rep (Engineering)</Label>
+                    <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={(form as any).ai_rep_id || ""} onChange={(e) => setForm({ ...form, ai_rep_id: e.target.value } as any)}>
+                      <option value="">Select</option>
+                      {aiReps.map(u => <option key={u.id} value={u.id}>{`${u.first_name} ${u.last_name}`.trim() || u.email}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Tech Rep (Support/Impl.)</Label>
+                    <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={(form as any).tech_rep_id || ""} onChange={(e) => setForm({ ...form, tech_rep_id: e.target.value } as any)}>
+                      <option value="">Select</option>
+                      {techReps.map(u => <option key={u.id} value={u.id}>{`${u.first_name} ${u.last_name}`.trim() || u.email}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Sales Rep</Label>
+                    <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={(form as any).sales_rep_id || ""} onChange={(e) => setForm({ ...form, sales_rep_id: e.target.value } as any)}>
+                      <option value="">Select</option>
+                      {salesReps.map(u => <option key={u.id} value={u.id}>{`${u.first_name} ${u.last_name}`.trim() || u.email}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="space-y-2"><Label>Received Date</Label><Input type="date" value={(form as any).received_date || ""} onChange={(e) => setForm({ ...form, received_date: e.target.value } as any)} /></div>
+                  <div className="space-y-2"><Label>UAT Date</Label><Input type="date" value={(form as any).uat_date || ""} onChange={(e) => setForm({ ...form, uat_date: e.target.value } as any)} /></div>
+                  <div className="space-y-2"><Label>Actual Go-Live Date</Label><Input type="date" value={(form as any).actual_go_live_date || ""} onChange={(e) => setForm({ ...form, actual_go_live_date: e.target.value } as any)} /></div>
+                </div>
                   <>
                     <Separator />
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Additional Fields</p>
