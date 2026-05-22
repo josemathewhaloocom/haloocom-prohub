@@ -58,16 +58,20 @@ export default function POCs() {
   };
 
   const fetchMeta = async () => {
-    const [{ data: prod }, { data: roles }] = await Promise.all([
+    const [{ data: prod }, { data: allRoles }] = await Promise.all([
       supabase.from("product_catalog").select("*").eq("is_active", true).order("name"),
-      supabase.from("user_roles").select("user_id, role").in("role", ["support_engineer", "engineering"] as any),
+      supabase.from("user_roles").select("user_id, role"),
     ]);
     setProducts(prod ?? []);
-    const ids = [...new Set((roles ?? []).map((r: any) => r.user_id))];
-    if (ids.length) {
-      const { data: profs } = await supabase.from("profiles").select("id, first_name, last_name, email").in("id", ids);
-      setEngineers(profs ?? []);
-    }
+    const ids = [...new Set((allRoles ?? []).map((r: any) => r.user_id))];
+    if (!ids.length) return;
+    const { data: profs } = await supabase.from("profiles").select("id, first_name, last_name, email").in("id", ids);
+    const profMap = new Map((profs ?? []).map((p: any) => [p.id, p]));
+    const collect = (names: string[]) => (allRoles ?? []).filter((r: any) => names.includes(r.role)).map((r: any) => profMap.get(r.user_id)).filter(Boolean);
+    setEngineers(collect(["support_engineer", "engineering"]));
+    setAiReps(collect(["engineering"]));
+    setTechReps(collect(["support_engineer", "engineering"]));
+    setSalesReps(collect(["sales", "sales_manager"]));
   };
 
   useEffect(() => { fetchPocs(); fetchMeta(); }, []);
