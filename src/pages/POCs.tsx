@@ -44,6 +44,10 @@ export default function POCs() {
   const [form, setForm] = useState<any>({ status: "in_progress", priority: "medium" });
   const [products, setProducts] = useState<any[]>([]);
   const [engineers, setEngineers] = useState<any[]>([]);
+  const [aiReps, setAiReps] = useState<any[]>([]);
+  const [techReps, setTechReps] = useState<any[]>([]);
+  const [salesReps, setSalesReps] = useState<any[]>([]);
+  const PHASE_OPTIONS = ["Kickoff", "Requirements", "Design", "Development", "UAT", "Go-Live", "Closed"];
 
   const canCreate = isProjectManager || isSales || isSalesManager || isAdminManager || isCEO;
 
