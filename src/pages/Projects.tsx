@@ -80,6 +80,9 @@ export default function Projects() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<ProjectForm>({ status: "draft" as any, priority: "medium" });
   const [products, setProducts] = useState<Product[]>([]);
+  const [aiReps, setAiReps] = useState<any[]>([]);
+  const [techReps, setTechReps] = useState<any[]>([]);
+  const [salesReps, setSalesReps] = useState<any[]>([]);
 
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -91,6 +94,8 @@ export default function Projects() {
   const [customFields, setCustomFields] = useState<Array<{ id: string; field_name: string; field_type: string; is_required: boolean; sort_order: number; dropdown_options?: any }>>([]);
   const [dropdownConfig, setDropdownConfig] = useState<Array<{ field_name: string; field_value: string; sort_order: number; is_active: boolean }>>([]);
   const [customValues, setCustomValues] = useState<Record<string, any>>({});
+
+  const PHASE_OPTIONS = ["Kickoff", "Requirements", "Design", "Development", "UAT", "Go-Live", "Closed"];
 
   const canCreate = isProjectManager || isSales;
   const canDelete = isProjectManager;
