@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { UserPlus, Search, Users } from "lucide-react";
+import { UserPlus, Search, Users, Pencil } from "lucide-react";
 import { Navigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Constants } from "@/integrations/supabase/types";
@@ -62,6 +62,33 @@ export default function UsersPage() {
   const [form, setForm] = useState({ email: "", password: "", first_name: "", last_name: "" });
   const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
   const [inviteReportingManager, setInviteReportingManager] = useState<string>("");
+  const [editUser, setEditUser] = useState<UserWithRoles | null>(null);
+  const [editForm, setEditForm] = useState({ first_name: "", last_name: "", email: "", password: "" });
+  const [editSubmitting, setEditSubmitting] = useState(false);
+
+  const openEdit = (u: UserWithRoles) => {
+    setEditUser(u);
+    setEditForm({ first_name: u.first_name || "", last_name: u.last_name || "", email: u.email || "", password: "" });
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editUser) return;
+    setEditSubmitting(true);
+    const payload: any = {
+      user_id: editUser.id,
+      first_name: editForm.first_name,
+      last_name: editForm.last_name,
+    };
+    if (editForm.email && editForm.email !== editUser.email) payload.email = editForm.email;
+    if (editForm.password) payload.password = editForm.password;
+    const { data, error } = await supabase.functions.invoke("admin-update-user", { body: payload });
+    setEditSubmitting(false);
+    if (error || data?.error) { toast.error(data?.error || error?.message || "Failed to update user"); return; }
+    toast.success("User updated");
+    setEditUser(null);
+    fetchUsers();
+  };
 
   const fetchUsers = async () => {
     const { data: profiles } = await supabase.from("profiles").select("id, first_name, last_name, email");
@@ -310,11 +337,12 @@ export default function UsersPage() {
                 <TableHead>Roles</TableHead>
                 <TableHead>Reporting Manager</TableHead>
                 <TableHead>Manage Roles</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredUsers.length === 0 ? (
-                <TableRow><TableCell colSpan={5} className="py-12 text-center text-muted-foreground">No users found.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={6} className="py-12 text-center text-muted-foreground">No users found.</TableCell></TableRow>
               ) : filteredUsers.map((u) => (
                 <TableRow key={u.id}>
                   <TableCell className="font-medium">{u.first_name} {u.last_name}</TableCell>
@@ -367,12 +395,36 @@ export default function UsersPage() {
                       ))}
                     </div>
                   </TableCell>
+                  <TableCell className="text-right">
+                    <Button variant="ghost" size="sm" onClick={() => openEdit(u)}>
+                      <Pencil className="h-4 w-4 mr-1" /> Edit
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
+
+      <Dialog open={!!editUser} onOpenChange={(o) => !o && setEditUser(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Edit User</DialogTitle></DialogHeader>
+          <form onSubmit={handleEditSubmit} className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2"><Label>First Name</Label><Input value={editForm.first_name} onChange={(e) => setEditForm({ ...editForm, first_name: e.target.value })} required /></div>
+              <div className="space-y-2"><Label>Last Name</Label><Input value={editForm.last_name} onChange={(e) => setEditForm({ ...editForm, last_name: e.target.value })} /></div>
+            </div>
+            <div className="space-y-2"><Label>Email</Label><Input type="email" value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} required /></div>
+            <div className="space-y-2">
+              <Label>New Password</Label>
+              <Input type="password" value={editForm.password} onChange={(e) => setEditForm({ ...editForm, password: e.target.value })} placeholder="Leave blank to keep unchanged" minLength={6} />
+              <p className="text-xs text-muted-foreground">Only fill this to reset the user's password.</p>
+            </div>
+            <Button type="submit" className="w-full" disabled={editSubmitting}>{editSubmitting ? "Saving..." : "Save Changes"}</Button>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
