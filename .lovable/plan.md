@@ -1,61 +1,68 @@
-# Plan: Daily Standup Meeting Module
+# Plan: Tasks + Command Center (360° Project Management)
 
-## Goal
-Replace the Google Sheet standup tracker with an in-app module that pulls Projects and POCs already in the system, lets the team log a daily meeting per date, and tracks open action items with priority and status across days.
+## 1. Tasks module (new)
+A real task tracker attached to any Project or POC.
 
-## How it links to existing modules
-- **Source of truth stays in Projects / POCs.** The standup picker only lists existing Projects and POCs — nothing standalone. New Projects/POCs added anywhere appear automatically in the next standup.
-- Project/POC name, client, product, phase, % complete, go-live date, AI/Tech/Sales rep are **read live** from the project/POC record — no duplicate entry.
-- A standup discussion item's "progress today / blockers" can optionally be pushed into the project's existing **Daily Updates** in one click, so engineers don't double-enter.
-- Action items remain open across days until closed, independent of which meeting created them.
+Fields: title, description, parent task (self-reference → sub-tasks), project/POC link, assignee, priority (Critical/High/Medium/Low), status (Open / In Progress / Blocked / Done / Cancelled), due date, reminder/alert lead time (e.g. 1 day before due), completed date, comments.
 
-## New module: Standups
-Sidebar entry "Standups". Two views:
+UI:
+- `/tasks` page: filterable table (assignee, status, priority, project, overdue), grouped or expandable to show sub-tasks under parents.
+- "Create Task" dialog with an "Add sub-task" repeater.
+- Tasks tab inside Project Detail and POC Detail, so tasks are managed in context.
+- Overdue and due-today rows highlighted; in-app alert badge in the sidebar.
 
-1. **Today's Meeting** — open or create today's standup, add a row per project/POC discussed.
-2. **Open Action Items** — global list across all clients/dates, filterable by status, priority, assignee, client.
+## 2. Command Center dashboard (new `/command-center`)
+One screen with everything live:
+- KPI strip: Live projects, Open tickets, Escalated tickets, Follow-ups pending, Overdue tasks, Health checkups overdue.
+- Live Projects table: status, phase, % complete, engineer, next milestone/ETA, last update age (flags "no update in N days").
+- Escalations panel: tickets flagged as escalated or breaching SLA, with age and owner.
+- Tickets panel: by status/priority/team, aging buckets.
+- Follow-ups pending: tasks and standup items past due or with no next step.
+- Project status highlights: at-risk / delayed / blocked items pulled from standups.
+- Alerts panel: support members with zero tasks created in the last N days; SLA breaches; missing health checkups.
 
-### Per-item fields (per Daily Updates Log in the sheet)
-- Project or POC (dropdown from existing records)
-- Status Today (On Track / In Progress / At Risk / Delayed / On Hold / Completed)
-- Progress / Activities done
-- Blockers / Issues
-- Next steps
-- ETA for next milestone
-- "Also save to project Daily Updates" toggle
+## 3. Project 360 (extend Project Detail)
+New tabs on each project so one place holds the whole lifecycle:
+- **Customizations** — log of customizations done (title, description, date, done by, version).
+- **Upgrades** — upgrade history (from version → to version, date, engineer, notes); dashboard shows last upgrade date.
+- **Health Checkups** — scheduled + completed checkups (due date, completed date, engineer, report file, findings). Overdue checkups raise a reminder on the dashboard.
+- **Client Feedback** — rating (1–5), comments, captured date, source; rolls up into performance reports.
+- Existing Documents / Tickets / Daily Updates surfaced in the same tab strip.
 
-### Action items (Pending Tasks Tracker)
-Created from any standup item or directly:
-- Linked project/POC, description, assignee, priority (Critical/High/Medium/Low), status (Open/In Progress/Completed/Cancelled), created date, due date, closed date, comments. Overdue items auto-highlight.
+## 4. Reviews & Reports (new `/reviews`)
+- **Weekly review** — auto-generated per week: projects moved, tickets opened/closed, TAT, tasks completed vs overdue, escalations, plus a free-text review note and action points.
+- **Monthly review** — same rolled to month, with trends.
+- **Suggestions & Feedback** — internal suggestion box any user can post to; managers mark reviewed/actioned.
+- **Performance report** — per engineer: tickets closed, avg TAT, tasks completed on time, projects delivered, health checkups done, client feedback average.
 
-## Master Tracker fields added to Projects & POCs
-Add the columns from the sheet's master tracker that we don't already have, so the standup can show them:
-- `tech_stack` (text)
-- `phase` (dropdown: Kickoff / Requirements / Design / Development / UAT / Go-Live / Closed)
-- `client_poc_name`, `client_poc_email`
-- `ai_rep_id` — dropdown of users in the **Engineering** role
-- `tech_rep_id` — dropdown of users in **Support Engineer** or **Implementation Engineering** roles
-- `sales_rep_id` — dropdown of users in **Sales** or **Sales Manager** roles
-- `received_date`, `uat_date`, `actual_go_live_date` (dates; expected go-live = existing `deadline`)
+## 5. Alerts & notifications
+- **SLA escalation to team leads**: when a ticket crosses its SLA threshold, notify the assignee's reporting manager (Support Manager / Engineering Manager / PM) by email.
+- **No-task alert**: if a support team member has created/updated no tasks for N days, flag on the dashboard and email their manager.
+- **Health checkup reminder**: email when a checkup is past its due date.
+- **Task due alerts**: reminder email at the configured lead time before due date.
+- All alerts also appear in an in-app Notifications bell with read/unread.
 
-Existing fields reused: client_name, product, num_users, num_channels, num_trunks (POC: `trunk`), description, start_date, status, progress_percentage.
+## 6. EOD digest email
+A scheduled edge function (`eod-digest`) runs daily at end of day and emails managers + PM:
+- all support tickets (open / in-progress / closed today, with escalations called out)
+- live project status snapshot (status, % complete, blockers, ETA)
+- overdue tasks and pending follow-ups
 
-## Database
-- `standup_meetings` (meeting_date unique, conducted_by, notes)
-- `standup_items` (meeting_id, project_id nullable, poc_id nullable — exactly one set, status_today, progress, blockers, next_steps, eta_date)
-- `standup_action_items` (project_id nullable, poc_id nullable, source_standup_item_id nullable, description, assigned_to, priority, status, created_date, due_date, closed_date, comments)
-- ALTER `projects` and `pocs` to add the master tracker columns above.
+Runs via pg_cron on the database calling the function; uses the existing SMTP setup.
 
-RLS: visible to all authenticated users (small team, <10 people, matching existing pattern). Creators and assignees can edit their own items; PM/managers full access.
+## Technical notes
+- New tables: `tasks`, `task_comments`, `notifications`, `project_customizations`, `project_upgrades`, `health_checkups`, `client_feedback`, `reviews`, `suggestions`, `alert_settings`.
+- Add `is_escalated`, `escalated_at`, `sla_due_at` to `support_tickets`.
+- All tables: GRANTs + RLS (authenticated read for the small team; write scoped to creator/assignee, managers full access), `updated_at` triggers.
+- New edge functions: `eod-digest`, `run-alerts` (SLA / health-check / no-task / task-due scanning), both reusing the existing SMTP sender.
+- pg_cron + pg_net schedule for the two functions.
+- New pages: `Tasks.tsx`, `CommandCenter.tsx`, `Reviews.tsx`; new tabs in `ProjectDetail.tsx`; sidebar entries; notification bell in `AppLayout`.
 
-## UI
-- `src/pages/Standups.tsx` — today's meeting board: header with date picker + "Create today's standup", grid of items per project, inline add-row, action-items side panel.
-- `src/pages/ActionItems.tsx` — filterable global table of all open/closed action items, color-coded by overdue/priority.
-- Add to `AppSidebar.tsx` and `App.tsx` routes `/standups` and `/action-items`.
-- Reuse existing dropdown config pattern for Status/Phase/Priority values so PM can customize.
-
-## Out of scope (for later if needed)
-- Meeting attendance / notes export
-- Email digests of the standup
-- Auto-creating action items from blockers via AI
-
+## Build order
+1. DB migration (all tables, RLS, grants)
+2. Tasks module + sub-tasks + project/POC tabs
+3. Command Center dashboard
+4. Project 360 tabs (customizations, upgrades, health checkups, feedback)
+5. Reviews, suggestions, performance report
+6. Alerts engine + notification bell
+7. EOD digest email + cron
