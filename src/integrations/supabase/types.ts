@@ -14,6 +14,92 @@ export type Database = {
   }
   public: {
     Tables: {
+      alert_settings: {
+        Row: {
+          eod_recipients: string[]
+          health_checkup_interval_days: number
+          id: string
+          inactivity_days: number
+          sla_critical_hours: number
+          sla_high_hours: number
+          sla_low_hours: number
+          sla_medium_hours: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          eod_recipients?: string[]
+          health_checkup_interval_days?: number
+          id?: string
+          inactivity_days?: number
+          sla_critical_hours?: number
+          sla_high_hours?: number
+          sla_low_hours?: number
+          sla_medium_hours?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          eod_recipients?: string[]
+          health_checkup_interval_days?: number
+          id?: string
+          inactivity_days?: number
+          sla_critical_hours?: number
+          sla_high_hours?: number
+          sla_low_hours?: number
+          sla_medium_hours?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      client_feedback: {
+        Row: {
+          comments: string | null
+          created_at: string
+          created_by: string | null
+          engineer_id: string | null
+          feedback_date: string
+          id: string
+          project_id: string
+          rating: number
+          source: string | null
+          updated_at: string
+        }
+        Insert: {
+          comments?: string | null
+          created_at?: string
+          created_by?: string | null
+          engineer_id?: string | null
+          feedback_date?: string
+          id?: string
+          project_id: string
+          rating: number
+          source?: string | null
+          updated_at?: string
+        }
+        Update: {
+          comments?: string | null
+          created_at?: string
+          created_by?: string | null
+          engineer_id?: string | null
+          feedback_date?: string
+          id?: string
+          project_id?: string
+          rating?: number
+          source?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_feedback_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       daily_updates: {
         Row: {
           blockers: string | null
@@ -189,6 +275,59 @@ export type Database = {
         }
         Relationships: []
       }
+      health_checkups: {
+        Row: {
+          completed_date: string | null
+          created_at: string
+          created_by: string | null
+          engineer_id: string | null
+          findings: string | null
+          id: string
+          project_id: string
+          reminder_sent_at: string | null
+          report_url: string | null
+          scheduled_date: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          completed_date?: string | null
+          created_at?: string
+          created_by?: string | null
+          engineer_id?: string | null
+          findings?: string | null
+          id?: string
+          project_id: string
+          reminder_sent_at?: string | null
+          report_url?: string | null
+          scheduled_date: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          completed_date?: string | null
+          created_at?: string
+          created_by?: string | null
+          engineer_id?: string | null
+          findings?: string | null
+          id?: string
+          project_id?: string
+          reminder_sent_at?: string | null
+          report_url?: string | null
+          scheduled_date?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "health_checkups_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       milestones: {
         Row: {
           completed_at: string | null
@@ -229,6 +368,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      notifications: {
+        Row: {
+          body: string | null
+          category: string
+          created_at: string
+          id: string
+          is_read: boolean
+          link: string | null
+          title: string
+          user_id: string
+        }
+        Insert: {
+          body?: string | null
+          category?: string
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          link?: string | null
+          title: string
+          user_id: string
+        }
+        Update: {
+          body?: string | null
+          category?: string
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          link?: string | null
+          title?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       poc_assignments: {
         Row: {
@@ -548,6 +720,53 @@ export type Database = {
           },
         ]
       }
+      project_customizations: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          done_by: string | null
+          done_on: string
+          id: string
+          project_id: string
+          title: string
+          updated_at: string
+          version: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          done_by?: string | null
+          done_on?: string
+          id?: string
+          project_id: string
+          title: string
+          updated_at?: string
+          version?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          done_by?: string | null
+          done_on?: string
+          id?: string
+          project_id?: string
+          title?: string
+          updated_at?: string
+          version?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_customizations_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       project_dropdown_config: {
         Row: {
           created_at: string
@@ -642,6 +861,53 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "project_stakeholders_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_upgrades: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          from_version: string | null
+          id: string
+          notes: string | null
+          performed_by: string | null
+          project_id: string
+          to_version: string
+          updated_at: string
+          upgrade_date: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          from_version?: string | null
+          id?: string
+          notes?: string | null
+          performed_by?: string | null
+          project_id: string
+          to_version: string
+          updated_at?: string
+          upgrade_date?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          from_version?: string | null
+          id?: string
+          notes?: string | null
+          performed_by?: string | null
+          project_id?: string
+          to_version?: string
+          updated_at?: string
+          upgrade_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_upgrades_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
@@ -826,6 +1092,48 @@ export type Database = {
         }
         Relationships: []
       }
+      reviews: {
+        Row: {
+          action_points: string | null
+          created_at: string
+          created_by: string | null
+          highlights: string | null
+          id: string
+          lowlights: string | null
+          metrics: Json
+          period_end: string
+          period_start: string
+          period_type: string
+          updated_at: string
+        }
+        Insert: {
+          action_points?: string | null
+          created_at?: string
+          created_by?: string | null
+          highlights?: string | null
+          id?: string
+          lowlights?: string | null
+          metrics?: Json
+          period_end: string
+          period_start: string
+          period_type: string
+          updated_at?: string
+        }
+        Update: {
+          action_points?: string | null
+          created_at?: string
+          created_by?: string | null
+          highlights?: string | null
+          id?: string
+          lowlights?: string | null
+          metrics?: Json
+          period_end?: string
+          period_start?: string
+          period_type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       smtp_settings: {
         Row: {
           from_email: string | null
@@ -991,6 +1299,42 @@ export type Database = {
         }
         Relationships: []
       }
+      suggestions: {
+        Row: {
+          body: string | null
+          category: string
+          created_at: string
+          created_by: string | null
+          id: string
+          response: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          body?: string | null
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          response?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          body?: string | null
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          response?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       support_ticket_config: {
         Row: {
           created_at: string
@@ -1082,13 +1426,16 @@ export type Database = {
           created_by: string
           department: string
           description: string | null
+          escalated_at: string | null
           id: string
+          is_escalated: boolean
           issue_reported_via: string
           priority: string
           product_name: string | null
           project_id: string
           report_file_url: string | null
           resolution: string | null
+          sla_due_at: string | null
           status: string
           sub_category: string | null
           subject: string
@@ -1108,13 +1455,16 @@ export type Database = {
           created_by: string
           department: string
           description?: string | null
+          escalated_at?: string | null
           id?: string
+          is_escalated?: boolean
           issue_reported_via: string
           priority?: string
           product_name?: string | null
           project_id: string
           report_file_url?: string | null
           resolution?: string | null
+          sla_due_at?: string | null
           status?: string
           sub_category?: string | null
           subject: string
@@ -1134,13 +1484,16 @@ export type Database = {
           created_by?: string
           department?: string
           description?: string | null
+          escalated_at?: string | null
           id?: string
+          is_escalated?: boolean
           issue_reported_via?: string
           priority?: string
           product_name?: string | null
           project_id?: string
           report_file_url?: string | null
           resolution?: string | null
+          sla_due_at?: string | null
           status?: string
           sub_category?: string | null
           subject?: string
@@ -1168,6 +1521,127 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_comments: {
+        Row: {
+          author_id: string | null
+          body: string
+          created_at: string
+          id: string
+          task_id: string
+        }
+        Insert: {
+          author_id?: string | null
+          body: string
+          created_at?: string
+          id?: string
+          task_id: string
+        }
+        Update: {
+          author_id?: string | null
+          body?: string
+          created_at?: string
+          id?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_comments_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tasks: {
+        Row: {
+          assignee_id: string | null
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          due_date: string | null
+          id: string
+          parent_task_id: string | null
+          poc_id: string | null
+          priority: string
+          project_id: string | null
+          reminder_days_before: number
+          reminder_sent_at: string | null
+          status: string
+          ticket_id: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assignee_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          parent_task_id?: string | null
+          poc_id?: string | null
+          priority?: string
+          project_id?: string | null
+          reminder_days_before?: number
+          reminder_sent_at?: string | null
+          status?: string
+          ticket_id?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assignee_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          parent_task_id?: string | null
+          poc_id?: string | null
+          priority?: string
+          project_id?: string | null
+          reminder_days_before?: number
+          reminder_sent_at?: string | null
+          status?: string
+          ticket_id?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasks_parent_task_id_fkey"
+            columns: ["parent_task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_poc_id_fkey"
+            columns: ["poc_id"]
+            isOneToOne: false
+            referencedRelation: "pocs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "support_tickets"
             referencedColumns: ["id"]
           },
         ]
