@@ -20,6 +20,9 @@ import SupportTickets from "@/pages/SupportTickets";
 import TicketReports from "@/pages/TicketReports";
 import FAQPage from "@/pages/FAQPage";
 import Standups from "@/pages/Standups";
+import Tasks from "@/pages/Tasks";
+import CommandCenter from "@/pages/CommandCenter";
+import Reviews from "@/pages/Reviews";
 
 import NotFound from "./pages/NotFound";
 import PublicSign from "./pages/PublicSign";
