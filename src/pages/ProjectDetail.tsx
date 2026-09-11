@@ -22,6 +22,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import type { Database } from "@/integrations/supabase/types";
+import TaskManager from "@/components/tasks/TaskManager";
+import ProjectLifecycle from "@/components/project/ProjectLifecycle";
 
 type Project = Database["public"]["Tables"]["projects"]["Row"];
 
