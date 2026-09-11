@@ -1156,6 +1156,25 @@ export default function ProjectDetail() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* ===== TASKS TAB ===== */}
+        <TabsContent value="tasks" className="mt-4">
+          <TaskManager projectId={id!} embedded />
+        </TabsContent>
+
+        {/* ===== LIFECYCLE TABS ===== */}
+        <TabsContent value="customizations" className="mt-4">
+          <ProjectLifecycle projectId={id!} section="customizations" />
+        </TabsContent>
+        <TabsContent value="upgrades" className="mt-4">
+          <ProjectLifecycle projectId={id!} section="upgrades" />
+        </TabsContent>
+        <TabsContent value="health" className="mt-4">
+          <ProjectLifecycle projectId={id!} section="health" />
+        </TabsContent>
+        <TabsContent value="feedback" className="mt-4">
+          <ProjectLifecycle projectId={id!} section="feedback" />
+        </TabsContent>
       </Tabs>
 
       {/* ===== SIGNATURE PAD DIALOG ===== */}
