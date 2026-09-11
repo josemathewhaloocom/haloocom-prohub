@@ -810,6 +810,11 @@ export default function ProjectDetail() {
           <TabsTrigger value="documents">Documents</TabsTrigger>
           {canManageStatus && <TabsTrigger value="status">Status</TabsTrigger>}
           <TabsTrigger value="engineers">Engineers</TabsTrigger>
+          <TabsTrigger value="tasks">Tasks</TabsTrigger>
+          <TabsTrigger value="customizations">Customizations</TabsTrigger>
+          <TabsTrigger value="upgrades">Upgrades</TabsTrigger>
+          <TabsTrigger value="health">Health Checkups</TabsTrigger>
+          <TabsTrigger value="feedback">Client Feedback</TabsTrigger>
         </TabsList>
 
         {/* ===== OVERVIEW TAB ===== */}
