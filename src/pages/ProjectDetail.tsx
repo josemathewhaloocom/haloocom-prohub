@@ -22,6 +22,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import type { Database } from "@/integrations/supabase/types";
+import TaskManager from "@/components/tasks/TaskManager";
+import ProjectLifecycle from "@/components/project/ProjectLifecycle";
 
 type Project = Database["public"]["Tables"]["projects"]["Row"];
 
@@ -810,6 +812,11 @@ export default function ProjectDetail() {
           <TabsTrigger value="documents">Documents</TabsTrigger>
           {canManageStatus && <TabsTrigger value="status">Status</TabsTrigger>}
           <TabsTrigger value="engineers">Engineers</TabsTrigger>
+          <TabsTrigger value="tasks">Tasks</TabsTrigger>
+          <TabsTrigger value="customizations">Customizations</TabsTrigger>
+          <TabsTrigger value="upgrades">Upgrades</TabsTrigger>
+          <TabsTrigger value="health">Health Checkups</TabsTrigger>
+          <TabsTrigger value="feedback">Client Feedback</TabsTrigger>
         </TabsList>
 
         {/* ===== OVERVIEW TAB ===== */}
@@ -1150,6 +1157,25 @@ export default function ProjectDetail() {
               </Table>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* ===== TASKS TAB ===== */}
+        <TabsContent value="tasks" className="mt-4">
+          <TaskManager projectId={id!} embedded />
+        </TabsContent>
+
+        {/* ===== LIFECYCLE TABS ===== */}
+        <TabsContent value="customizations" className="mt-4">
+          <ProjectLifecycle projectId={id!} section="customizations" />
+        </TabsContent>
+        <TabsContent value="upgrades" className="mt-4">
+          <ProjectLifecycle projectId={id!} section="upgrades" />
+        </TabsContent>
+        <TabsContent value="health" className="mt-4">
+          <ProjectLifecycle projectId={id!} section="health" />
+        </TabsContent>
+        <TabsContent value="feedback" className="mt-4">
+          <ProjectLifecycle projectId={id!} section="feedback" />
         </TabsContent>
       </Tabs>
 

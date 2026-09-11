@@ -20,6 +20,9 @@ import SupportTickets from "@/pages/SupportTickets";
 import TicketReports from "@/pages/TicketReports";
 import FAQPage from "@/pages/FAQPage";
 import Standups from "@/pages/Standups";
+import Tasks from "@/pages/Tasks";
+import CommandCenter from "@/pages/CommandCenter";
+import Reviews from "@/pages/Reviews";
 
 import NotFound from "./pages/NotFound";
 import PublicSign from "./pages/PublicSign";
@@ -49,6 +52,9 @@ const App = () => (
               <Route path="/ticket-reports" element={<TicketReports />} />
               <Route path="/faq" element={<FAQPage />} />
               <Route path="/standups" element={<Standups />} />
+              <Route path="/tasks" element={<Tasks />} />
+              <Route path="/command-center" element={<CommandCenter />} />
+              <Route path="/reviews" element={<Reviews />} />
               
               <Route path="/users" element={<UsersPage />} />
               <Route path="/settings" element={<SettingsPage />} />

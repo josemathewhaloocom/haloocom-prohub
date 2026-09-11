@@ -16,6 +16,9 @@ import {
   TicketIcon,
   Lightbulb,
   CalendarDays,
+  ListChecks,
+  Gauge,
+  LineChart,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -34,6 +37,8 @@ export default function AppSidebar() {
 
   const navItems = [
     { to: "/", label: "Dashboard", icon: LayoutDashboard, visible: true },
+    { to: "/command-center", label: "Command Center", icon: Gauge, visible: true },
+    { to: "/tasks", label: "Tasks", icon: ListChecks, visible: true },
     { to: "/projects", label: "Projects", icon: FolderKanban, visible: true },
     { to: "/pocs", label: "POCs", icon: Lightbulb, visible: isProjectManager || isSales || isSalesManager || isAdminManager || isCEO || isAnyEngineer },
     { to: "/engineers", label: "Engineers", icon: Users, visible: isProjectManager },
@@ -42,6 +47,7 @@ export default function AppSidebar() {
     { to: "/documents", label: "Documents", icon: FileText, visible: true },
     { to: "/tickets", label: "Tickets", icon: TicketIcon, visible: isProjectManager || isAnyEngineer || isSupportManager || isEngineeringManager },
     { to: "/ticket-reports", label: "Ticket Reports", icon: BarChart3, visible: isProjectManager || isSupportManager || isEngineeringManager },
+    { to: "/reviews", label: "Reviews & Reports", icon: LineChart, visible: true },
     { to: "/faq", label: "FAQ", icon: HelpCircle, visible: true },
     { to: "/users", label: "Users", icon: UserCog, visible: isProjectManager },
     { to: "/settings", label: "Settings", icon: Settings, visible: isProjectManager || isSupportManager || isEngineeringManager },

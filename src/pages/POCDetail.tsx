@@ -223,6 +223,7 @@ export default function POCDetail() {
           <TabsTrigger value="updates">Daily Updates</TabsTrigger>
           <TabsTrigger value="stakeholders">Stakeholders</TabsTrigger>
           <TabsTrigger value="engineers">Engineers</TabsTrigger>
+          <TabsTrigger value="tasks">Tasks</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview">

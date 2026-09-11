@@ -1,6 +1,7 @@
 import { Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import AppSidebar from "./AppSidebar";
+import NotificationBell from "./NotificationBell";
 
 export default function AppLayout() {
   const { user, loading } = useAuth();
@@ -18,9 +19,14 @@ export default function AppLayout() {
   return (
     <div className="flex h-screen overflow-hidden">
       <AppSidebar />
-      <main className="flex-1 overflow-y-auto bg-background p-6">
-        <Outlet />
-      </main>
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <header className="flex h-14 shrink-0 items-center justify-end border-b bg-background px-6">
+          <NotificationBell />
+        </header>
+        <main className="flex-1 overflow-y-auto bg-background p-6">
+          <Outlet />
+        </main>
+      </div>
     </div>
   );
 }
