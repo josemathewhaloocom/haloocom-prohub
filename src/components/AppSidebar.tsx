@@ -47,6 +47,7 @@ export default function AppSidebar() {
     { to: "/documents", label: "Documents", icon: FileText, visible: true },
     { to: "/tickets", label: "Tickets", icon: TicketIcon, visible: isProjectManager || isAnyEngineer || isSupportManager || isEngineeringManager },
     { to: "/ticket-reports", label: "Ticket Reports", icon: BarChart3, visible: isProjectManager || isSupportManager || isEngineeringManager },
+    { to: "/reviews", label: "Reviews & Reports", icon: LineChart, visible: true },
     { to: "/faq", label: "FAQ", icon: HelpCircle, visible: true },
     { to: "/users", label: "Users", icon: UserCog, visible: isProjectManager },
     { to: "/settings", label: "Settings", icon: Settings, visible: isProjectManager || isSupportManager || isEngineeringManager },
