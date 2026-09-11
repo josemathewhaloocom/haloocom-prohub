@@ -37,6 +37,8 @@ export default function AppSidebar() {
 
   const navItems = [
     { to: "/", label: "Dashboard", icon: LayoutDashboard, visible: true },
+    { to: "/command-center", label: "Command Center", icon: Gauge, visible: true },
+    { to: "/tasks", label: "Tasks", icon: ListChecks, visible: true },
     { to: "/projects", label: "Projects", icon: FolderKanban, visible: true },
     { to: "/pocs", label: "POCs", icon: Lightbulb, visible: isProjectManager || isSales || isSalesManager || isAdminManager || isCEO || isAnyEngineer },
     { to: "/engineers", label: "Engineers", icon: Users, visible: isProjectManager },
