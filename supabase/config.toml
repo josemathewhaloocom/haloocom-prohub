@@ -8,3 +8,9 @@ verify_jwt = false
 
 [functions.sign-document]
 verify_jwt = false
+
+[functions.run-alerts]
+verify_jwt = false
+
+[functions.eod-digest]
+verify_jwt = false

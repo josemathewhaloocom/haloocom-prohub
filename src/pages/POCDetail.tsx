@@ -16,6 +16,7 @@ import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { ArrowLeft, Plus, Save, Rocket, Lightbulb, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import TaskManager from "@/components/tasks/TaskManager";
 
 const STATUS_OPTIONS = [
   { value: "in_progress", label: "In Progress" },
@@ -362,6 +363,10 @@ export default function POCDetail() {
               })}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="tasks" className="mt-4">
+          <TaskManager pocId={id!} embedded />
         </TabsContent>
       </Tabs>
     </div>
