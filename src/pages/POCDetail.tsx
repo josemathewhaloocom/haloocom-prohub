@@ -363,6 +363,10 @@ export default function POCDetail() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="tasks" className="mt-4">
+          <TaskManager pocId={id!} embedded />
+        </TabsContent>
       </Tabs>
     </div>
   );
